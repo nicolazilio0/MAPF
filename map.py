@@ -200,16 +200,22 @@ def check_conflicts(array1, array2, array3):
     min_length = min(len(array1), len(array2), len(array3))
     for i in range(min_length - 1, 0, -1):
         if array1[i] == array2[i]:
-            array1.insert(i, array1[i - 1])
-            array2.insert(i, array2[i - 1])
+            if len(array1) < len(array2):
+                array1.insert(i, array1[i - 1])
+            else:
+                array2.insert(i, array2[i - 1])
 
         if array2[i] == array3[i]:
-            array2.insert(i, array2[i - 1])
-            array3.insert(i, array3[i - 1])
+            if len(array2) < len(array3):
+                array2.insert(i, array2[i - 1])
+            else:
+                array3.insert(i, array3[i - 1])
 
         if array1[i] == array3[i]:
-            array1.insert(i, array1[i - 1])
-            array3.insert(i, array3[i - 1])
+            if len(array1) < len(array3):
+                array1.insert(i, array1[i - 1])
+            else:
+                array3.insert(i, array3[i - 1])
 
     return array1, array2, array3
 
@@ -312,14 +318,14 @@ if __name__ == '__main__':
     print(gate_line[0])
 
 
-    gate_limits=[(gate_line[0][0],gate_line[0][1]),(gate_line[1][0],gate_line[1][1])]
+    # gate_limits=[(gate_line[0][0],gate_line[0][1]),(gate_line[1][0],gate_line[1][1])]
 
-    for i in range(gate_line[1][0],gate_line[0][0],cell_size):
-        for j in range(gate_line[1][1],gate_line[0][1]+cell_size,cell_size):
-            print(j)
-            occupancy_matrix[j//cell_size,i//cell_size,2]=2
+    # for i in range(gate_line[1][0],gate_line[0][0],cell_size):
+    #     for j in range(gate_line[1][1],gate_line[0][1]+cell_size,cell_size):
+    #         print(j)
+    #         occupancy_matrix[j//cell_size,i//cell_size,2]=2
 
-
+    occupancy_matrix[gate_center[1]//cell_size,gate_center[0]//cell_size,2]=2
     cv2.line(gridded_image, (gate_line[0][0],gate_line[0][1]), (gate_line[1][0],gate_line[1][1]), (255, 0, 0), 2)
     cv2.imshow("Image with Polygons", gridded_image)
 
@@ -364,7 +370,7 @@ if __name__ == '__main__':
     path3 = astar(G, start_node, goal_node, heuristic=euclidean_distance)
 
     # print("A* robot 2 Path:", path)
-    plt.show()
+    # plt.show()
 
 
 
@@ -402,7 +408,7 @@ if __name__ == '__main__':
     for i in range(max_path_length):
         
         cv2.circle(image,(path1[i]%grid_size*cell_size+int(cell_size/2),path1[i]//grid_size*cell_size+int(cell_size/2)),color=(100, 255, 100), radius=10,thickness=-1)
-        cv2.circle(image,(path2[i]%grid_size*cell_size+int(cell_size/2),path3[i]//grid_size*cell_size+int(cell_size/2)),color=(100, 100, 255), radius=10,thickness=-1)
+        cv2.circle(image,(path2[i]%grid_size*cell_size+int(cell_size/2),path2[i]//grid_size*cell_size+int(cell_size/2)),color=(100, 100, 255), radius=10,thickness=-1)
         cv2.circle(image,(path3[i]%grid_size*cell_size+int(cell_size/2),path3[i]//grid_size*cell_size+int(cell_size/2)),color=(255, 100, 100), radius=10,thickness=-1)
         cv2.imshow("Image with Polygons", image)
         time.sleep(0.5)
