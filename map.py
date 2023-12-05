@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import heapq
 
 import random
-
+import time
 
 def divide_image_into_grid(image, rows, cols):
     # Get image dimensions
@@ -73,6 +73,10 @@ def divide_image_into_grid(image, rows, cols, polygons):
                 cv2.rectangle(grid_image, (x, y), (x + cell_width, y + cell_height), (0, 0, 0), -1)  # Fill the cell in black
                 occupancy_matrix[j, i, 2] = 1  # Mark the cell as occupied
             else:
+                if i==0 or j==0 or i==cols-1 or j==rows-1:
+                    occupancy_matrix[j, i, 2] = 1  # Mark the cell as occupied
+                    cv2.rectangle(grid_image, (x, y), (x + cell_width, y + cell_height), (0, 0, 0), -1)  # Fill the cell in black
+
                 # Draw vertical lines
                 if i < cols - 1:
                     cv2.line(grid_image, (x + cell_width, y), (x + cell_width, y + cell_height), (255, 0, 0), 1)
@@ -113,8 +117,7 @@ def build_adjacency_matrix(map_matrix):
     adjacency_matrix = np.zeros((rows * cols, rows * cols), dtype=int)
 
     def is_valid(i, j):
-     
-        return 0 <= i < rows and 0 <= j < cols and map_matrix[i, j] == 0
+        return (map_matrix[i, j] == 2) or (0 <= i < rows and 0 <= j < cols and map_matrix[i, j] == 0 ) 
 
     for i in range(rows):
         for j in range(cols):
@@ -271,14 +274,14 @@ if __name__ == '__main__':
 
     # Divide the image into a grid
 
-    grid_size=50
+    grid_size=25
     cell_size=image.shape[0]//grid_size
     gridded_image,occupancy_matrix=divide_image_into_grid(image,grid_size,grid_size,polygons)
 
 
-    robot_1_position=np.random.uniform(low=0, high=grid_size, size=2)
-    robot_2_position=np.random.uniform(low=0, high=grid_size, size=2)
-    robot_3_position=np.random.uniform(low=0, high=grid_size, size=2)
+    robot_1_position=np.random.uniform(low=1, high=grid_size-1, size=2)
+    robot_2_position=np.random.uniform(low=1, high=grid_size-1, size=2)
+    robot_3_position=np.random.uniform(low=1, high=grid_size-1, size=2)
 
 
     robot_1_position=np.array([int(robot_1_position[0]*cell_size),int(robot_1_position[1]*cell_size)])
@@ -306,9 +309,18 @@ if __name__ == '__main__':
     occupancy_matrix[int(robot_2_position[0])//cell_size,int(robot_2_position[1])//cell_size,2]=0
     occupancy_matrix[int(robot_3_position[0])//cell_size,int(robot_3_position[1])//cell_size,2]=0
 
-    occupancy_matrix[int(gate_center[0])//cell_size,int(gate_center[1])//cell_size,2]=0
-    
+    print(gate_line[0])
 
+
+    gate_limits=[(gate_line[0][0],gate_line[0][1]),(gate_line[1][0],gate_line[1][1])]
+
+    for i in range(gate_line[1][0],gate_line[0][0],cell_size):
+        for j in range(gate_line[1][1],gate_line[0][1]+cell_size,cell_size):
+            print(j)
+            occupancy_matrix[j//cell_size,i//cell_size,2]=2
+
+
+    cv2.line(gridded_image, (gate_line[0][0],gate_line[0][1]), (gate_line[1][0],gate_line[1][1]), (255, 0, 0), 2)
     cv2.imshow("Image with Polygons", gridded_image)
 
 
@@ -352,7 +364,8 @@ if __name__ == '__main__':
     path3 = astar(G, start_node, goal_node, heuristic=euclidean_distance)
 
     # print("A* robot 2 Path:", path)
-    # plt.show()
+    plt.show()
+
 
 
     path1, path2, path3 = check_conflicts(path1, path2, path3)
@@ -360,6 +373,9 @@ if __name__ == '__main__':
     for i in path1:
         gridded_image=cv2.circle(gridded_image, (int(i%grid_size)*cell_size+int(cell_size/2), int(i//grid_size)*cell_size+int(cell_size/2)), color=(0, 255, 0), radius=10,thickness=-1)
 
+    
+    cv2.imshow("Image with Polygons", gridded_image)
+    cv2.waitKey(0)  # Wait for a key press
 
     for i in path2:
         gridded_image=cv2.circle(gridded_image, (int(i%grid_size)*cell_size+int(cell_size/2), int(i//grid_size)*cell_size+int(cell_size/2)), color=(255, 255, 0), radius=10,thickness=-1)
@@ -367,11 +383,33 @@ if __name__ == '__main__':
     for i in path3:
         gridded_image=cv2.circle(gridded_image, (int(i%grid_size)*cell_size+int(cell_size/2), int(i//grid_size)*cell_size+int(cell_size/2)), color=(12, 110, 125), radius=10,thickness=-1)
 
-    
+
     
     cv2.imshow("Image with Polygons", gridded_image)
     
     cv2.waitKey(0)  # Wait for a key press
+
+
+    max_path_length=max(len(path1),len(path2),len(path3))
+    if(len(path1)<max_path_length):
+        path1.extend([path1[-1]]*(max_path_length-len(path1)))
+    if(len(path2)<max_path_length):
+        path2.extend([path2[-1]]*(max_path_length-len(path2)))
+    if(len(path3)<max_path_length):
+        path3.extend([path3[-1]]*(max_path_length-len(path3)))
+
+
+    for i in range(max_path_length):
+        
+        cv2.circle(image,(path1[i]%grid_size*cell_size+int(cell_size/2),path1[i]//grid_size*cell_size+int(cell_size/2)),color=(100, 255, 100), radius=10,thickness=-1)
+        cv2.circle(image,(path2[i]%grid_size*cell_size+int(cell_size/2),path3[i]//grid_size*cell_size+int(cell_size/2)),color=(100, 100, 255), radius=10,thickness=-1)
+        cv2.circle(image,(path3[i]%grid_size*cell_size+int(cell_size/2),path3[i]//grid_size*cell_size+int(cell_size/2)),color=(255, 100, 100), radius=10,thickness=-1)
+        cv2.imshow("Image with Polygons", image)
+        time.sleep(0.5)
+        cv2.waitKey(1)
+
+
+
 
     '''
     plan_poly=[(0,0)]
