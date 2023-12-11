@@ -81,14 +81,14 @@ class VoronoiMap : public rclcpp::Node
 {
 public:
   VoronoiMap()
-      : Node("voronoi_map"), coordinateMapper(30, 30, 1000, 1000)
+      : Node("voronoi_map"), coordinateMapper(16, 16, 500, 500)
   {
     obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&VoronoiMap::getObstacles, this, _1));
     gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&VoronoiMap::getGates, this, _1));
     mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&VoronoiMap::getMap, this, _1));
 
     cv::namedWindow("map", cv::WINDOW_AUTOSIZE);
-    mapImage = cv::Mat(1000, 1000, CV_8UC3, cv::Scalar(255, 255, 255));
+    mapImage = cv::Mat(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
   }
 
 private:
@@ -100,39 +100,50 @@ private:
   CoordinateMapper coordinateMapper;
 
   // Drawing the map
-  void drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image)
+  void drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     // Convert polygon points to OpenCV points
     std::vector<cv::Point> cvPoints;
     for (const auto &point : polygon.points)
     {
       double imageX, imageY;
-      coordinateMapper.convertToImageCoordinates(point.x, point.y, imageX, imageY);
+      // fix flipped coordinates
+      // TODO: maybe integrate this in the coordinateclass
+      coordinateMapper.convertToImageCoordinates(-point.y, -point.x, imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
 
     // Draw polygon on the image
-    cv::polylines(image, cvPoints, true, cv::Scalar(0, 255, 0), 2);
+    if (fill)
+    {
+      cv::fillPoly(image, cvPoints, color);
+    }
+    else
+    {
+      cv::polylines(image, cvPoints, true, color, 2);
+    }
   }
 
-  void drawCircle(float radius, const cv::Point &center, cv::Mat &image)
+  void drawCircle(float radius, const cv::Point &center, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
-    // Draw circle on the image
     double imageCenterX, imageCenterY;
-    coordinateMapper.convertToImageCoordinates(center.x, center.y, imageCenterX, imageCenterY);
+    // fix flipped coordinates
+    // TODO: maybe integrate this in the coordinateclass
+    coordinateMapper.convertToImageCoordinates(-center.y, -center.x, imageCenterX, imageCenterY);
 
     double imageRadius;
     coordinateMapper.convertToImageCoordinates(radius, imageRadius);
 
-    cv::circle(image, cv::Point(imageCenterX, imageCenterY), static_cast<int>(imageRadius), cv::Scalar(0, 0, 255), 2);
+    int thickness = fill ? -1 : 2;
+
+    // Draw circle on the image
+
+    cv::circle(image, cv::Point(imageCenterX, imageCenterY), static_cast<int>(imageRadius), color, thickness);
   }
 
   // Callbacks for topic handling
   void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
   {
-
-    // Create an OpenCV Mat for visualization
-    cv::Mat image(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
 
     RCLCPP_INFO(this->get_logger(), "Received %zu obstacles", msg.obstacles.size());
 
@@ -143,32 +154,21 @@ private:
       // Access the polygon and radius fields for each obstacle
       const auto &polygon = obstacle.polygon;
       const auto &radius = obstacle.radius;
-      // Information log
-      // // Log information about the obstacle
-      // RCLCPP_INFO(this->get_logger(), "Obstacle %zu:", i);
-      // // Log polygon information
-      // for (const auto &point : polygon.points)
-      // {
-      //     RCLCPP_INFO(this->get_logger(), "  Polygon Point: (%f, %f)", point.x, point.y);
-      // }
-      // // Log radius information
-      // RCLCPP_INFO(this->get_logger(), "  Radius: %f", radius);
+
       if (radius == 0.0)
       {
-        // drawPolygon(polygon, image);
-        // radius = 0;
-        RCLCPP_INFO(this->get_logger(), "  Polygon ");
+        this->drawPolygon(polygon, mapImage, true, cv::Scalar(0, 255, 0));
       }
       else
       {
         // Circle only contains one polygon
         const auto &point = polygon.points[0];
-        RCLCPP_INFO(this->get_logger(), "  Circle center: (%f, %f), Radius (%f)", point.x, point.y, radius);
-
-        drawCircle(radius/2, cv::Point(point.x, point.y), mapImage);
+        this->drawCircle(radius / 2, cv::Point(point.x, point.y), mapImage, true, cv::Scalar(0, 255, 0));
       }
     }
-    cv::imshow("map", mapImage); // Declare mapImage as a class member);
+
+    // Plot the map
+    cv::imshow("map", mapImage);
     cv::waitKey(0);
   }
 
@@ -181,22 +181,16 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received map borders");
 
-    const auto &polygon = msg;
-
-    for (const auto &point : polygon.points)
-    {
-      RCLCPP_INFO(this->get_logger(), "  Polygon Point: (%f, %f)", point.x, point.y);
-    }
-
     // Draw map borders
-    drawPolygon(polygon, mapImage);
+    this->drawPolygon(msg, mapImage, false);
   }
 };
 
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<VoronoiMap>());
+  auto voronoiMap = std::make_shared<VoronoiMap>();
+  rclcpp::spin(voronoiMap);
   rclcpp::shutdown();
   return 0;
 }
