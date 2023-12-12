@@ -78,7 +78,7 @@ private:
   double offsetY_;
 };
 
-struct RobotInfo
+struct Shelfino
 {
   int id;
   double x;
@@ -86,6 +86,7 @@ struct RobotInfo
   double z;
   geometry_msgs::msg::Quaternion orientation;
 };
+
 
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
@@ -126,7 +127,7 @@ private:
 
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
-  std::vector<RobotInfo> robotInfoVec;
+  std::vector<Shelfino> shelfinos;
 
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
@@ -270,16 +271,16 @@ private:
   {
 
     // Find the RobotInfo for the specified robotId
-    auto it = std::find_if(robotInfoVec.begin(), robotInfoVec.end(),
-                           [robotId](const RobotInfo &info)
-                           { return info.id == robotId; });
+    auto it = std::find_if(shelfinos.begin(), shelfinos.end(),
+                           [robotId](const Shelfino &shelfino)
+                           { return shelfino.id == robotId; });
 
-    if (it == robotInfoVec.end())
+    if (it == shelfinos.end())
     {
-      RobotInfo robotInfo;
-      robotInfo.id = robotId;
-      robotInfoVec.push_back(robotInfo);
-      it = std::prev(robotInfoVec.end());
+      Shelfino shelfino;
+      shelfino.id = robotId;
+      shelfinos.push_back(shelfino);
+      it = std::prev(shelfinos.end());
     }
 
     // Update the position and orientation of the robot
@@ -293,10 +294,10 @@ private:
   {
     mapImageCopy = mapImage.clone();
 
-    for (const auto &robotInfo : robotInfoVec)
+    for (const auto &shelfino : shelfinos)
     {
-      int colorIdentifier = 50 + (50 * robotInfo.id);
-      this->drawSquare(.5, .5, cv::Point(robotInfo.x, robotInfo.y), robotInfo.orientation, mapImageCopy, true, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
+      int colorIdentifier = 50 + (50 * shelfino.id);
+      this->drawSquare(.5, .5, cv::Point(shelfino.x, shelfino.y), shelfino.orientation, mapImageCopy, true, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
     }
 
     // Plot the map
