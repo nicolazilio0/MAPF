@@ -14,6 +14,8 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 
+#include "nav_msgs/msg/odometry.hpp"
+
 #include "geometry_msgs/msg/point32.hpp"
 #include "geometry_msgs/msg/polygon.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
@@ -76,6 +78,15 @@ private:
   double offsetY_;
 };
 
+struct RobotInfo
+{
+  int id;
+  double x;
+  double y;
+  double z;
+  geometry_msgs::msg::Quaternion orientation;
+};
+
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
@@ -83,14 +94,25 @@ class VoronoiMap : public rclcpp::Node
 {
 public:
   VoronoiMap()
-      : Node("voronoi_map"), coordinateMapper(16, 16, 500, 500)
+      : Node("voronoi_map"), coordinateMapper(17, 17, 750, 750)
   {
     obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&VoronoiMap::getObstacles, this, _1));
     gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&VoronoiMap::getGates, this, _1));
     mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&VoronoiMap::getMap, this, _1));
 
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 0);
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 1);
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 2);
+
+    shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
+    shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
+    shelfino2Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino2/odom", 10, shelfino2Odom);
+
+    mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&VoronoiMap::updateMap, this));
+
     cv::namedWindow("map", cv::WINDOW_AUTOSIZE);
-    mapImage = cv::Mat(500, 500, CV_8UC3, cv::Scalar(0, 0, 0));
+    mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(255, 255, 255));
+    mapImageCopy = mapImage.clone();
   }
 
 private:
@@ -98,8 +120,16 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gatesSubscritpion_;
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
 
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0Subscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
+
   cv::Mat mapImage; // Declare mapImage as a class member
+  cv::Mat mapImageCopy;
+  std::vector<RobotInfo> robotInfoVec;
+
   CoordinateMapper coordinateMapper;
+  rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
   // Drawing the map
   void drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
@@ -149,48 +179,34 @@ private:
     Eigen::Quaterniond quaternion(orientation.w, orientation.x, orientation.y, orientation.z);
     Eigen::Matrix3d rotationMatrix = quaternion.toRotationMatrix();
 
-    // Compute the four corners of the rotated square
+    // Compute the four corners of the rotated square in the object space
     double halfWidth = width / 2.0;
     double halfHeight = height / 2.0;
 
-    Eigen::Vector3d p1(-halfWidth, -halfHeight, 0);
-    Eigen::Vector3d p2(halfWidth, -halfHeight, 0);
-    Eigen::Vector3d p3(halfWidth, halfHeight, 0);
-    Eigen::Vector3d p4(-halfWidth, halfHeight, 0);
+    Eigen::Vector3d corners[4] = {
+        {-halfWidth, -halfHeight, 0},
+        {halfWidth, -halfHeight, 0},
+        {halfWidth, halfHeight, 0},
+        {-halfWidth, halfHeight, 0}};
 
-    p1 = (rotationMatrix * p1).eval();
-    p2 = (rotationMatrix * p2).eval();
-    p3 = (rotationMatrix * p3).eval();
-    p4 = (rotationMatrix * p4).eval();
-
-    double x1 = center.x + p1.x();
-    double y1 = center.y + p1.y();
-
-    double x2 = center.x + p2.x();
-    double y2 = center.y + p2.y();
-
-    double x3 = center.x + p3.x();
-    double y3 = center.y + p3.y();
-
-    double x4 = center.x + p4.x();
-    double y4 = center.y + p4.y();
-
-    // Convert square points to OpenCV points
+    // Transform the object space points to world space and convert to OpenCV points
     std::vector<cv::Point> cvPoints;
-    double imageX, imageY;
-    coordinateMapper.convertToImageCoordinates(-y1, -x1, imageX, imageY);
-    cvPoints.emplace_back(imageX, imageY);
-    coordinateMapper.convertToImageCoordinates(-y2, -x2, imageX, imageY);
-    cvPoints.emplace_back(imageX, imageY);
-    coordinateMapper.convertToImageCoordinates(-y3, -x3, imageX, imageY);
-    cvPoints.emplace_back(imageX, imageY);
-    coordinateMapper.convertToImageCoordinates(-y4, -x4, imageX, imageY);
-    cvPoints.emplace_back(imageX, imageY);
+    cvPoints.reserve(4);
+    for (const auto &corner : corners)
+    {
+      Eigen::Vector3d transformedCorner = (rotationMatrix * corner).eval();
+      transformedCorner.x() += center.x;
+      transformedCorner.y() += center.y;
+
+      double imageX, imageY;
+      coordinateMapper.convertToImageCoordinates(-transformedCorner.y(), -transformedCorner.x(), imageX, imageY);
+      cvPoints.emplace_back(imageX, imageY);
+    }
 
     // Draw square on the image
     if (fill)
     {
-      cv::fillConvexPoly(image, cvPoints, color);
+      cv::fillConvexPoly(image, cvPoints.data(), 4, color);
     }
     else
     {
@@ -224,9 +240,9 @@ private:
       }
     }
 
-    // Plot the map
-    cv::imshow("map", mapImage);
-    cv::waitKey(0);
+    // // Plot the map
+    // cv::imshow("map", mapImage);
+    // cv::waitKey(0);
   }
 
   void getGates(const geometry_msgs::msg::PoseArray &msg)
@@ -247,7 +263,45 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received map borders");
 
     // Draw map borders
-    this->drawPolygon(msg, mapImage, true, cv::Scalar(255, 255, 255));
+    this->drawPolygon(msg, mapImage, false);
+  }
+
+  void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
+  {
+
+    // Find the RobotInfo for the specified robotId
+    auto it = std::find_if(robotInfoVec.begin(), robotInfoVec.end(),
+                           [robotId](const RobotInfo &info)
+                           { return info.id == robotId; });
+
+    if (it == robotInfoVec.end())
+    {
+      RobotInfo robotInfo;
+      robotInfo.id = robotId;
+      robotInfoVec.push_back(robotInfo);
+      it = std::prev(robotInfoVec.end());
+    }
+
+    // Update the position and orientation of the robot
+    it->x = msg->pose.pose.position.x;
+    it->y = msg->pose.pose.position.y;
+    it->z = msg->pose.pose.position.z;
+    it->orientation = msg->pose.pose.orientation;
+  }
+
+  void updateMap()
+  {
+    mapImageCopy = mapImage.clone();
+
+    for (const auto &robotInfo : robotInfoVec)
+    {
+      int colorIdentifier = 50 + (50 * robotInfo.id);
+      this->drawSquare(.5, .5, cv::Point(robotInfo.x, robotInfo.y), robotInfo.orientation, mapImageCopy, true, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
+    }
+
+    // Plot the map
+    cv::imshow("map", mapImageCopy);
+    cv::waitKey(1); // Non-blocking wait key
   }
 };
 
