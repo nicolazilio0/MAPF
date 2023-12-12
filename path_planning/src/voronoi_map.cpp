@@ -11,6 +11,8 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <opencv2/opencv.hpp>
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Dense>
 
 #include "geometry_msgs/msg/point32.hpp"
 #include "geometry_msgs/msg/polygon.hpp"
@@ -88,7 +90,7 @@ public:
     mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&VoronoiMap::getMap, this, _1));
 
     cv::namedWindow("map", cv::WINDOW_AUTOSIZE);
-    mapImage = cv::Mat(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
+    mapImage = cv::Mat(500, 500, CV_8UC3, cv::Scalar(0, 0, 0));
   }
 
 private:
@@ -141,6 +143,61 @@ private:
     cv::circle(image, cv::Point(imageCenterX, imageCenterY), static_cast<int>(imageRadius), color, thickness);
   }
 
+  void drawSquare(double width, double height, const cv::Point &center, const geometry_msgs::msg::Quaternion &orientation, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  {
+    // Convert quaternion to rotation matrix
+    Eigen::Quaterniond quaternion(orientation.w, orientation.x, orientation.y, orientation.z);
+    Eigen::Matrix3d rotationMatrix = quaternion.toRotationMatrix();
+
+    // Compute the four corners of the rotated square
+    double halfWidth = width / 2.0;
+    double halfHeight = height / 2.0;
+
+    Eigen::Vector3d p1(-halfWidth, -halfHeight, 0);
+    Eigen::Vector3d p2(halfWidth, -halfHeight, 0);
+    Eigen::Vector3d p3(halfWidth, halfHeight, 0);
+    Eigen::Vector3d p4(-halfWidth, halfHeight, 0);
+
+    p1 = (rotationMatrix * p1).eval();
+    p2 = (rotationMatrix * p2).eval();
+    p3 = (rotationMatrix * p3).eval();
+    p4 = (rotationMatrix * p4).eval();
+
+    double x1 = center.x + p1.x();
+    double y1 = center.y + p1.y();
+
+    double x2 = center.x + p2.x();
+    double y2 = center.y + p2.y();
+
+    double x3 = center.x + p3.x();
+    double y3 = center.y + p3.y();
+
+    double x4 = center.x + p4.x();
+    double y4 = center.y + p4.y();
+
+    // Convert square points to OpenCV points
+    std::vector<cv::Point> cvPoints;
+    double imageX, imageY;
+    coordinateMapper.convertToImageCoordinates(-y1, -x1, imageX, imageY);
+    cvPoints.emplace_back(imageX, imageY);
+    coordinateMapper.convertToImageCoordinates(-y2, -x2, imageX, imageY);
+    cvPoints.emplace_back(imageX, imageY);
+    coordinateMapper.convertToImageCoordinates(-y3, -x3, imageX, imageY);
+    cvPoints.emplace_back(imageX, imageY);
+    coordinateMapper.convertToImageCoordinates(-y4, -x4, imageX, imageY);
+    cvPoints.emplace_back(imageX, imageY);
+
+    // Draw square on the image
+    if (fill)
+    {
+      cv::fillConvexPoly(image, cvPoints, color);
+    }
+    else
+    {
+      cv::polylines(image, cvPoints, true, color, 2);
+    }
+  }
+
   // Callbacks for topic handling
   void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
   {
@@ -174,7 +231,15 @@ private:
 
   void getGates(const geometry_msgs::msg::PoseArray &msg)
   {
-    RCLCPP_INFO(this->get_logger(), "I recived gates");
+    RCLCPP_INFO(this->get_logger(), "Received gate");
+
+    const auto &pose = msg.poses[0];
+    const auto &position = pose.position;
+    // always 0 0 0 for now
+    const auto &orientation = pose.orientation;
+
+    // is a box of size 1 [mt] -> use circle to simplify
+    this->drawSquare(1, 1, cv::Point(position.x, position.y), orientation, mapImage, true, cv::Scalar(0, 0, 255));
   }
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
@@ -182,7 +247,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received map borders");
 
     // Draw map borders
-    this->drawPolygon(msg, mapImage, false);
+    this->drawPolygon(msg, mapImage, true, cv::Scalar(255, 255, 255));
   }
 };
 
