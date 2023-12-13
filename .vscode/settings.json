@@ -15,6 +15,7 @@
         "format": "cpp",
         "initializer_list": "cpp",
         "span": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "random": "cpp"
     }
 }

@@ -18,16 +18,16 @@ find_package(OpenCV REQUIRED)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 
-add_executable(voronoi_map src/voronoi_map.cpp)
-ament_target_dependencies(voronoi_map geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+add_executable(env_map src/env_map.cpp)
+ament_target_dependencies(env_map geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
 
-target_link_libraries(voronoi_map Boost::headers)
-target_link_libraries(voronoi_map Eigen3::Eigen)
-target_link_libraries(voronoi_map ${OpenCV_LIBRARIES})
+target_link_libraries(env_map Boost::headers)
+target_link_libraries(env_map Eigen3::Eigen)
+target_link_libraries(env_map ${OpenCV_LIBRARIES})
 
 
 install(TARGETS
-voronoi_map
+env_map
   DESTINATION lib/${PROJECT_NAME}
 )
 

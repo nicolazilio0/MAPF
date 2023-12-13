@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <random>
+#include <cmath>
 #include <fstream>
 
 #include "rclcpp/rclcpp.hpp"
@@ -16,6 +17,7 @@
 
 #include "nav_msgs/msg/odometry.hpp"
 
+#include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/point32.hpp"
 #include "geometry_msgs/msg/polygon.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
@@ -81,37 +83,90 @@ private:
 struct Shelfino
 {
   int id;
-  double x;
-  double y;
-  double z;
+  geometry_msgs::msg::Point position;
   geometry_msgs::msg::Quaternion orientation;
 };
 
+struct Gate
+{
+  double x;
+  double y;
+};
+
+struct Obstacle
+{
+  virtual geometry_msgs::msg::Polygon getPolygon()
+  {
+    geometry_msgs::msg::Polygon polygon;
+    return polygon;
+  }
+};
+
+struct PolygonObstacle : Obstacle
+{
+  geometry_msgs::msg::Polygon polygon;
+
+  geometry_msgs::msg::Polygon getPolygon()
+  {
+    return polygon;
+  }
+};
+
+struct CylinderObstacle : Obstacle
+{
+  double centerX;
+  double centerY;
+  double radius;
+  double numSegments = 10;
+
+  geometry_msgs::msg::Polygon getPolygon()
+  {
+    geometry_msgs::msg::Polygon polygon;
+
+    for (int i = 0; i < numSegments; i++)
+    {
+      double theta = 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(numSegments);
+      double x = centerX + radius * std::cos(theta);
+      double y = centerY + radius * std::sin(theta);
+
+      geometry_msgs::msg::Point32 point;
+      point.x = static_cast<float>(x);
+      point.y = static_cast<float>(y);
+
+      polygon.points.push_back(point);
+    }
+
+    // Add the first point to complete the circle
+    polygon.points.push_back(polygon.points.front());
+
+    return polygon;
+  }
+};
 
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
-class VoronoiMap : public rclcpp::Node
+class EnvironmentMap : public rclcpp::Node
 {
 public:
-  VoronoiMap()
-      : Node("voronoi_map"), coordinateMapper(17, 17, 750, 750)
+  EnvironmentMap()
+      : Node("env_map"), coordinateMapper(17, 17, 750, 750)
   {
-    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&VoronoiMap::getObstacles, this, _1));
-    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&VoronoiMap::getGates, this, _1));
-    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&VoronoiMap::getMap, this, _1));
+    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&EnvironmentMap::getObstacles, this, _1));
+    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&EnvironmentMap::getGates, this, _1));
+    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&EnvironmentMap::getMap, this, _1));
 
-    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 0);
-    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 1);
-    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&VoronoiMap::getShelfinoPosition, this, _1, 2);
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 0);
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 1);
+    std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 2);
 
     shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
     shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
     shelfino2Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino2/odom", 10, shelfino2Odom);
 
-    mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&VoronoiMap::updateMap, this));
+    mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
-    cv::namedWindow("map", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("Environment Map", cv::WINDOW_AUTOSIZE);
     mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(255, 255, 255));
     mapImageCopy = mapImage.clone();
   }
@@ -128,6 +183,9 @@ private:
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
   std::vector<Shelfino> shelfinos;
+  std::vector<Obstacle> obstacles;
+  Gate gate;
+  geometry_msgs::msg::Polygon mapBorders;
 
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
@@ -157,7 +215,7 @@ private:
     }
   }
 
-  void drawCircle(float radius, const cv::Point &center, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void drawCircle(float radius, const geometry_msgs::msg::Point32 &center, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     double imageCenterX, imageCenterY;
     // fix flipped coordinates
@@ -174,21 +232,20 @@ private:
     cv::circle(image, cv::Point(imageCenterX, imageCenterY), static_cast<int>(imageRadius), color, thickness);
   }
 
-  void drawSquare(double width, double height, const cv::Point &center, const geometry_msgs::msg::Quaternion &orientation, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void drawRectangle(double width, double height, const geometry_msgs::msg::Point &center, const geometry_msgs::msg::Quaternion &orientation, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     // Convert quaternion to rotation matrix
     Eigen::Quaterniond quaternion(orientation.w, orientation.x, orientation.y, orientation.z);
     Eigen::Matrix3d rotationMatrix = quaternion.toRotationMatrix();
 
-    // Compute the four corners of the rotated square in the object space
     double halfWidth = width / 2.0;
     double halfHeight = height / 2.0;
 
     Eigen::Vector3d corners[4] = {
-        {-halfWidth, -halfHeight, 0},
-        {halfWidth, -halfHeight, 0},
+        {-halfWidth, halfHeight, 0},
         {halfWidth, halfHeight, 0},
-        {-halfWidth, halfHeight, 0}};
+        {halfWidth, -halfHeight, 0},
+        {-halfWidth, -halfHeight, 0}};
 
     // Transform the object space points to world space and convert to OpenCV points
     std::vector<cv::Point> cvPoints;
@@ -223,27 +280,33 @@ private:
 
     for (size_t i = 0; i < msg.obstacles.size(); i++)
     {
-      const auto &obstacle = msg.obstacles[i];
+      const auto &msgObstacle = msg.obstacles[i];
 
       // Access the polygon and radius fields for each obstacle
-      const auto &polygon = obstacle.polygon;
-      const auto &radius = obstacle.radius;
+      const auto &polygon = msgObstacle.polygon;
+      const auto &radius = msgObstacle.radius;
+
+      Obstacle obstacle;
 
       if (radius == 0.0)
       {
         this->drawPolygon(polygon, mapImage, true, cv::Scalar(0, 255, 0));
+        PolygonObstacle obstacle;
+        obstacle.polygon = polygon;
       }
       else
       {
         // Circle only contains one polygon
         const auto &point = polygon.points[0];
-        this->drawCircle(radius / 2, cv::Point(point.x, point.y), mapImage, true, cv::Scalar(0, 255, 0));
+        this->drawCircle(radius / 2.0, point, mapImage, true, cv::Scalar(0, 255, 0));
+        CylinderObstacle obstacle;
+        obstacle.centerX = point.x;
+        obstacle.centerY = point.y;
+        obstacle.radius = radius / 2.0;
       }
-    }
 
-    // // Plot the map
-    // cv::imshow("map", mapImage);
-    // cv::waitKey(0);
+      obstacles.push_back(obstacle);
+    }
   }
 
   void getGates(const geometry_msgs::msg::PoseArray &msg)
@@ -252,11 +315,12 @@ private:
 
     const auto &pose = msg.poses[0];
     const auto &position = pose.position;
-    // always 0 0 0 for now
-    const auto &orientation = pose.orientation;
 
-    // is a box of size 1 [mt] -> use circle to simplify
-    this->drawSquare(1, 1, cv::Point(position.x, position.y), orientation, mapImage, true, cv::Scalar(0, 0, 255));
+    auto &orientation = pose.orientation;
+
+    this->drawRectangle(1.0, 1.0, position, orientation, mapImage, true, cv::Scalar(0, 0, 255));
+    gate.x = position.x;
+    gate.y = position.y;
   }
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
@@ -265,6 +329,7 @@ private:
 
     // Draw map borders
     this->drawPolygon(msg, mapImage, false);
+    mapBorders = msg;
   }
 
   void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
@@ -284,9 +349,7 @@ private:
     }
 
     // Update the position and orientation of the robot
-    it->x = msg->pose.pose.position.x;
-    it->y = msg->pose.pose.position.y;
-    it->z = msg->pose.pose.position.z;
+    it->position = msg->pose.pose.position;
     it->orientation = msg->pose.pose.orientation;
   }
 
@@ -297,11 +360,11 @@ private:
     for (const auto &shelfino : shelfinos)
     {
       int colorIdentifier = 50 + (50 * shelfino.id);
-      this->drawSquare(.5, .5, cv::Point(shelfino.x, shelfino.y), shelfino.orientation, mapImageCopy, true, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
+      this->drawRectangle(.5, .5, shelfino.position, shelfino.orientation, mapImageCopy, true, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
     }
 
     // Plot the map
-    cv::imshow("map", mapImageCopy);
+    cv::imshow("Environment Map", mapImageCopy);
     cv::waitKey(1); // Non-blocking wait key
   }
 };
@@ -309,8 +372,8 @@ private:
 int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
-  auto voronoiMap = std::make_shared<VoronoiMap>();
-  rclcpp::spin(voronoiMap);
+  auto environmentMap = std::make_shared<EnvironmentMap>();
+  rclcpp::spin(environmentMap);
   rclcpp::shutdown();
   return 0;
 }

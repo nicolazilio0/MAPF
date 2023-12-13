@@ -170,7 +170,7 @@ void GatesPublisher::spawn_gates(double x, double y){
   pose.orientation.x = 0;
   pose.orientation.y = 0;
   pose.orientation.z = 0;
-  pose.orientation.w = 0;
+  pose.orientation.w = 1;
   pose_array_temp.push_back(pose);
   
   // Add gate to the message
