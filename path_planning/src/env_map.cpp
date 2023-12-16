@@ -34,6 +34,21 @@
 
 using std::placeholders::_1;
 
+using namespace std::chrono_literals;
+/* This example creates a subclass of Node and uses std::bind() to register a
+ * member function as a callback from the timer. */
+static const rmw_qos_profile_t rmw_qos_profile_custom =
+    {
+        RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+        10,
+        RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+        RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+        RMW_QOS_DEADLINE_DEFAULT,
+        RMW_QOS_LIFESPAN_DEFAULT,
+        RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+        RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+        false};
+
 class CoordinateMapper
 {
 public:
@@ -96,9 +111,11 @@ public:
   EnvironmentMap()
       : Node("env_map"), coordinateMapper(17, 17, 750, 750)
   {
-    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&EnvironmentMap::getObstacles, this, _1));
-    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&EnvironmentMap::getGates, this, _1));
-    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&EnvironmentMap::getMap, this, _1));
+    const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
+
+    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&EnvironmentMap::getObstacles, this, _1));
+    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::getGates, this, _1));
+    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&EnvironmentMap::getMap, this, _1));
 
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 0);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 1);
@@ -108,7 +125,7 @@ public:
     shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
     shelfino2Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino2/odom", 10, shelfino2Odom);
 
-    voronoiVerticesSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("voronoi_vertices", 10, std::bind(&EnvironmentMap::getVoronoiVertices, this, _1));
+    voronoiSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("voronoi", 10, std::bind(&EnvironmentMap::getVoronoi, this, _1));
 
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
@@ -126,7 +143,7 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
 
-  rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr voronoiVerticesSubscritpion_;
+  rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr voronoiSubscritpion_;
 
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
@@ -151,7 +168,7 @@ private:
     // Draw points on the image
     for (const auto &point : cvPoints)
     {
-      cv::circle(image, point, 3, color, -1); // -1 indicates filled circle
+      cv::circle(image, point, 4, color, 2); // -1 indicates filled circle
     }
   }
 
@@ -304,12 +321,12 @@ private:
     it->orientation = msg->pose.pose.orientation;
   }
 
-  void getVoronoiVertices(const geometry_msgs::msg::Polygon &msg)
+  void getVoronoi(const geometry_msgs::msg::Polygon &msg)
   {
     RCLCPP_INFO(this->get_logger(), "Received voroni map");
 
     // Draw map borders
-    this->drawPoints(msg, mapImage, false);
+    this->drawPoints(msg, mapImage, cv::Scalar(100, 0, 0));
   }
 
   void updateMap()

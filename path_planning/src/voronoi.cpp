@@ -35,6 +35,21 @@
 
 using std::placeholders::_1;
 
+using namespace std::chrono_literals;
+/* This example creates a subclass of Node and uses std::bind() to register a
+ * member function as a callback from the timer. */
+static const rmw_qos_profile_t rmw_qos_profile_custom =
+    {
+        RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+        10,
+        RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+        RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+        RMW_QOS_DEADLINE_DEFAULT,
+        RMW_QOS_LIFESPAN_DEFAULT,
+        RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+        RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+        false};
+
 struct Obstacle
 {
     virtual geometry_msgs::msg::Polygon getPolygon() const = 0;
@@ -147,15 +162,17 @@ public:
     VoronoiPlanner()
         : Node("vornoi_planner")
     {
-        obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&VoronoiPlanner::getObstacles, this, _1));
-        mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&VoronoiPlanner::getMap, this, _1));
-        voronoiVerticesPublisher_ = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi_vertices", 10);
+        const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
+
+        obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&VoronoiPlanner::getObstacles, this, _1));
+        mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&VoronoiPlanner::getMap, this, _1));
+        voronoiPublisher_ = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi", 10);
     }
 
 private:
     rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstaclesSubscritpion_;
     rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
-    rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr voronoiVerticesPublisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr voronoiPublisher_;
 
     std::vector<std::unique_ptr<Obstacle>> obstacles;
     geometry_msgs::msg::Polygon mapBorders;
@@ -257,7 +274,7 @@ private:
             voronoiPolygon.points.push_back(point);
         }
         // Publish the geometry_msgs::msg::Polygon
-        voronoiVerticesPublisher_->publish(voronoiPolygon);
+        voronoiPublisher_->publish(voronoiPolygon);
     };
 };
 
