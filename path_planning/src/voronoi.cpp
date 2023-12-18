@@ -50,6 +50,52 @@ static const rmw_qos_profile_t rmw_qos_profile_custom =
         RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
         false};
 
+class CoordinateMapper
+{
+public:
+    CoordinateMapper(double realWorldWidth, double realWorldHeight, double imageWidth, double imageHeight)
+        : realWorldWidth_(realWorldWidth), realWorldHeight_(realWorldHeight),
+          imageWidth_(imageWidth), imageHeight_(imageHeight)
+    {
+        // Calculate scaling factors
+        scaleX_ = imageWidth_ / realWorldWidth_;
+        scaleY_ = imageHeight_ / realWorldHeight_;
+
+        // Calculate offset
+        offsetX_ = imageWidth_ / 2.0;
+        offsetY_ = imageHeight_ / 2.0;
+    }
+
+    void convertToImageCoordinates(double realX, double realY, int &imageX, int &imageY) const
+    {
+        imageX = std::round(realX * scaleX_ + offsetX_);
+        imageY = std::round(realY * scaleY_ + offsetY_);
+    }
+
+    // For symmetric world
+    void convertToImageCoordinates(double real, int &imageMeasure) const
+    {
+        imageMeasure = std::round(real * scaleX_);
+    }
+
+    void convertToRealWorldCoordinates(int imageX, int imageY, double &realX, double &realY) const
+    {
+        realX = (imageX - offsetX_) / scaleX_;
+        realY = (imageY - offsetY_) / scaleY_;
+    }
+
+private:
+    double realWorldWidth_;
+    double realWorldHeight_;
+    double imageWidth_;
+    double imageHeight_;
+
+    double scaleX_;
+    double scaleY_;
+    double offsetX_;
+    double offsetY_;
+};
+
 struct Obstacle
 {
     virtual geometry_msgs::msg::Polygon getPolygon() const = 0;
@@ -98,16 +144,16 @@ struct CylinderObstacle : Obstacle
 
 struct Point
 {
-    double a;
-    double b;
-    Point(double x, double y) : a(x), b(y) {}
+    int a;
+    int b;
+    Point(int x, int y) : a(x), b(y) {}
 };
 
 struct Segment
 {
     Point p0;
     Point p1;
-    Segment(double x1, double y1, double x2, double y2) : p0(x1, y1), p1(x2, y2) {}
+    Segment(int x1, int y1, int x2, int y2) : p0(x1, y1), p1(x2, y2) {}
 };
 
 namespace boost
@@ -160,7 +206,7 @@ class VoronoiPlanner : public rclcpp::Node
 {
 public:
     VoronoiPlanner()
-        : Node("vornoi_planner")
+        : Node("vornoi_planner"), coordinateMapper(17, 17, 750, 750)
     {
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
@@ -176,6 +222,8 @@ private:
 
     std::vector<std::unique_ptr<Obstacle>> obstacles;
     geometry_msgs::msg::Polygon mapBorders;
+
+    CoordinateMapper coordinateMapper;
 
     // Callbacks for topic handling
     void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
@@ -223,6 +271,7 @@ private:
     {
 
         std::vector<Segment> segments;
+        int image1X, image1Y, image2X, image2Y;
 
         // Convert obstacles and map borders
         for (const auto &obstacle : obstacles)
@@ -233,13 +282,19 @@ private:
             {
                 const auto &point1 = rosPolygon.points[i];
                 const auto &point2 = rosPolygon.points[i + 1];
-                segments.push_back(Segment(point1.x, point1.y, point2.x, point2.y));
+                coordinateMapper.convertToImageCoordinates(-point1.y, -point1.x, image1X, image1Y);
+                coordinateMapper.convertToImageCoordinates(-point2.y, -point2.x, image2X, image2Y);
+
+                segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
             }
 
             // Connect the last point with the first one
             const auto &firstPoint = rosPolygon.points.front();
             const auto &lastPoint = rosPolygon.points.back();
-            segments.push_back(Segment(lastPoint.x, lastPoint.y, firstPoint.x, firstPoint.y));
+            coordinateMapper.convertToImageCoordinates(-firstPoint.y, -firstPoint.x, image1X, image1Y);
+            coordinateMapper.convertToImageCoordinates(-lastPoint.y, -lastPoint.x, image2X, image2Y);
+
+            segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
         }
 
         // Create segments for map borders
@@ -247,13 +302,19 @@ private:
         {
             const auto &point1 = mapBorders.points[i];
             const auto &point2 = mapBorders.points[i + 1];
-            segments.push_back(Segment(point1.x, point1.y, point2.x, point2.y));
+            coordinateMapper.convertToImageCoordinates(-point1.y, -point1.x, image1X, image1Y);
+            coordinateMapper.convertToImageCoordinates(-point2.y, -point2.x, image2X, image2Y);
+
+            segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
         }
 
         // Connect the last point of map borders with the first one
         const auto &firstMapPoint = mapBorders.points.front();
         const auto &lastMapPoint = mapBorders.points.back();
-        segments.push_back(Segment(lastMapPoint.x, lastMapPoint.y, firstMapPoint.x, firstMapPoint.y));
+        coordinateMapper.convertToImageCoordinates(-firstMapPoint.y, -firstMapPoint.x, image1X, image1Y);
+        coordinateMapper.convertToImageCoordinates(-lastMapPoint.y, -lastMapPoint.x, image2X, image2Y);
+
+        segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
 
         boost::polygon::voronoi_diagram<double> vd;
         boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);

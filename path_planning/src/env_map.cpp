@@ -65,19 +65,19 @@ public:
     offsetY_ = imageHeight_ / 2.0;
   }
 
-  void convertToImageCoordinates(double realX, double realY, double &imageX, double &imageY) const
+  void convertToImageCoordinates(double realX, double realY, int &imageX, int &imageY) const
   {
     imageX = std::round(realX * scaleX_ + offsetX_);
     imageY = std::round(realY * scaleY_ + offsetY_);
   }
 
   // For symmetric world
-  void convertToImageCoordinates(double real, double &imageMeasure) const
+  void convertToImageCoordinates(double real, int &imageMeasure) const
   {
     imageMeasure = std::round(real * scaleX_);
   }
 
-  void convertToRealWorldCoordinates(double imageX, double imageY, double &realX, double &realY) const
+  void convertToRealWorldCoordinates(int imageX, int imageY, double &realX, double &realY) const
   {
     realX = (imageX - offsetX_) / scaleX_;
     realY = (imageY - offsetY_) / scaleY_;
@@ -152,23 +152,19 @@ private:
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
-  void drawPoints(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     // Convert polygon points to OpenCV points
     std::vector<cv::Point> cvPoints;
     for (const auto &point : polygon.points)
     {
-      double imageX, imageY;
-      // fix flipped coordinates
-      // TODO: maybe integrate this in the coordinate class
-      coordinateMapper.convertToImageCoordinates(-point.y, -point.x, imageX, imageY);
-      cvPoints.emplace_back(imageX, imageY);
+      cvPoints.emplace_back(point.x, point.y);
     }
 
     // Draw points on the image
     for (const auto &point : cvPoints)
     {
-      cv::circle(image, point, 4, color, 2); // -1 indicates filled circle
+      cv::circle(image, point, 2, color, -1); // -1 indicates filled circle
     }
   }
 
@@ -178,7 +174,7 @@ private:
     std::vector<cv::Point> cvPoints;
     for (const auto &point : polygon.points)
     {
-      double imageX, imageY;
+      int imageX, imageY;
       // fix flipped coordinates
       // TODO: maybe integrate this in the coordinateclass
       coordinateMapper.convertToImageCoordinates(-point.y, -point.x, imageX, imageY);
@@ -198,12 +194,12 @@ private:
 
   void drawCircle(float radius, const geometry_msgs::msg::Point32 &center, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
-    double imageCenterX, imageCenterY;
+    int imageCenterX, imageCenterY;
     // fix flipped coordinates
     // TODO: maybe integrate this in the coordinateclass
     coordinateMapper.convertToImageCoordinates(-center.y, -center.x, imageCenterX, imageCenterY);
 
-    double imageRadius;
+    int imageRadius;
     coordinateMapper.convertToImageCoordinates(radius, imageRadius);
 
     int thickness = fill ? -1 : 2;
@@ -237,7 +233,7 @@ private:
       transformedCorner.x() += center.x;
       transformedCorner.y() += center.y;
 
-      double imageX, imageY;
+      int imageX, imageY;
       coordinateMapper.convertToImageCoordinates(-transformedCorner.y(), -transformedCorner.x(), imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
@@ -326,7 +322,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received voroni map");
 
     // Draw map borders
-    this->drawPoints(msg, mapImage, cv::Scalar(100, 0, 0));
+    this->drawVoronoi(msg, mapImage, cv::Scalar(100, 0, 0));
   }
 
   void updateMap()
