@@ -9,6 +9,8 @@
 #include <cmath>
 #include <fstream>
 
+#include "CoordinateMapper.hpp"
+
 #include "rclcpp/rclcpp.hpp"
 
 #include <opencv2/opencv.hpp>
@@ -34,113 +36,26 @@
 
 using std::placeholders::_1;
 
-class CoordinateMapper
-{
-public:
-  CoordinateMapper(double realWorldWidth, double realWorldHeight, double imageWidth, double imageHeight)
-      : realWorldWidth_(realWorldWidth), realWorldHeight_(realWorldHeight),
-        imageWidth_(imageWidth), imageHeight_(imageHeight)
-  {
-    // Calculate scaling factors
-    scaleX_ = imageWidth_ / realWorldWidth_;
-    scaleY_ = imageHeight_ / realWorldHeight_;
-
-    // Calculate offset
-    offsetX_ = imageWidth_ / 2.0;
-    offsetY_ = imageHeight_ / 2.0;
-  }
-
-  void convertToImageCoordinates(double realX, double realY, double &imageX, double &imageY) const
-  {
-    imageX = std::round(realX * scaleX_ + offsetX_);
-    imageY = std::round(realY * scaleY_ + offsetY_);
-  }
-
-  // For symmetric world
-  void convertToImageCoordinates(double real, double &imageMeasure) const
-  {
-    imageMeasure = std::round(real * scaleX_);
-  }
-
-  void convertToRealWorldCoordinates(double imageX, double imageY, double &realX, double &realY) const
-  {
-    realX = (imageX - offsetX_) / scaleX_;
-    realY = (imageY - offsetY_) / scaleY_;
-  }
-
-private:
-  double realWorldWidth_;
-  double realWorldHeight_;
-  double imageWidth_;
-  double imageHeight_;
-
-  double scaleX_;
-  double scaleY_;
-  double offsetX_;
-  double offsetY_;
-};
+using namespace std::chrono_literals;
+/* This example creates a subclass of Node and uses std::bind() to register a
+ * member function as a callback from the timer. */
+static const rmw_qos_profile_t rmw_qos_profile_custom =
+    {
+        RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+        10,
+        RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+        RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+        RMW_QOS_DEADLINE_DEFAULT,
+        RMW_QOS_LIFESPAN_DEFAULT,
+        RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+        RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+        false};
 
 struct Shelfino
 {
   int id;
   geometry_msgs::msg::Point position;
   geometry_msgs::msg::Quaternion orientation;
-};
-
-struct Gate
-{
-  double x;
-  double y;
-};
-
-struct Obstacle
-{
-  virtual geometry_msgs::msg::Polygon getPolygon()
-  {
-    geometry_msgs::msg::Polygon polygon;
-    return polygon;
-  }
-};
-
-struct PolygonObstacle : Obstacle
-{
-  geometry_msgs::msg::Polygon polygon;
-
-  geometry_msgs::msg::Polygon getPolygon()
-  {
-    return polygon;
-  }
-};
-
-struct CylinderObstacle : Obstacle
-{
-  double centerX;
-  double centerY;
-  double radius;
-  double numSegments = 10;
-
-  geometry_msgs::msg::Polygon getPolygon()
-  {
-    geometry_msgs::msg::Polygon polygon;
-
-    for (int i = 0; i < numSegments; i++)
-    {
-      double theta = 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(numSegments);
-      double x = centerX + radius * std::cos(theta);
-      double y = centerY + radius * std::sin(theta);
-
-      geometry_msgs::msg::Point32 point;
-      point.x = static_cast<float>(x);
-      point.y = static_cast<float>(y);
-
-      polygon.points.push_back(point);
-    }
-
-    // Add the first point to complete the circle
-    polygon.points.push_back(polygon.points.front());
-
-    return polygon;
-  }
 };
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -152,9 +67,11 @@ public:
   EnvironmentMap()
       : Node("env_map"), coordinateMapper(17, 17, 750, 750)
   {
-    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", 10, std::bind(&EnvironmentMap::getObstacles, this, _1));
-    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", 10, std::bind(&EnvironmentMap::getGates, this, _1));
-    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", 10, std::bind(&EnvironmentMap::getMap, this, _1));
+    const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
+
+    obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&EnvironmentMap::getObstacles, this, _1));
+    gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::getGates, this, _1));
+    mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&EnvironmentMap::getMap, this, _1));
 
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 0);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 1);
@@ -163,6 +80,8 @@ public:
     shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
     shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
     shelfino2Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino2/odom", 10, shelfino2Odom);
+
+    voronoiSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("voronoi", 10, std::bind(&EnvironmentMap::getVoronoi, this, _1));
 
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
@@ -180,27 +99,40 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
 
+  rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr voronoiSubscritpion_;
+
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
   std::vector<Shelfino> shelfinos;
-  std::vector<Obstacle> obstacles;
-  Gate gate;
-  geometry_msgs::msg::Polygon mapBorders;
 
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
-  // Drawing the map
-  void drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image)
+  {
+    for (size_t i = 0; i < polygon.points.size() - 1; i += 2)
+    {
+      auto start = polygon.points[i];
+      auto end = polygon.points[i + 1];
+
+      cv::circle(image, cv::Point(start.x, start.y), 2, cv::Scalar(0, 0, 255), 2);
+      cv::circle(image, cv::Point(end.x, end.y), 2, cv::Scalar(0, 0, 255), 2);
+
+      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), cv::Scalar(2, 134, 242), 2);
+    }
+  }
+
+  void
+  drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     // Convert polygon points to OpenCV points
     std::vector<cv::Point> cvPoints;
     for (const auto &point : polygon.points)
     {
-      double imageX, imageY;
+      int imageX, imageY;
       // fix flipped coordinates
       // TODO: maybe integrate this in the coordinateclass
-      coordinateMapper.convertToImageCoordinates(-point.y, -point.x, imageX, imageY);
+      coordinateMapper.gazebo2img(point.x, point.y, imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
 
@@ -217,13 +149,13 @@ private:
 
   void drawCircle(float radius, const geometry_msgs::msg::Point32 &center, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
-    double imageCenterX, imageCenterY;
+    int imageCenterX, imageCenterY;
     // fix flipped coordinates
     // TODO: maybe integrate this in the coordinateclass
-    coordinateMapper.convertToImageCoordinates(-center.y, -center.x, imageCenterX, imageCenterY);
+    coordinateMapper.gazebo2img(center.x, center.y, imageCenterX, imageCenterY);
 
-    double imageRadius;
-    coordinateMapper.convertToImageCoordinates(radius, imageRadius);
+    int imageRadius;
+    coordinateMapper.gazebo2img(radius, imageRadius);
 
     int thickness = fill ? -1 : 2;
 
@@ -256,8 +188,8 @@ private:
       transformedCorner.x() += center.x;
       transformedCorner.y() += center.y;
 
-      double imageX, imageY;
-      coordinateMapper.convertToImageCoordinates(-transformedCorner.y(), -transformedCorner.x(), imageX, imageY);
+      int imageX, imageY;
+      coordinateMapper.gazebo2img(transformedCorner.x(), transformedCorner.y(), imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
 
@@ -286,26 +218,16 @@ private:
       const auto &polygon = msgObstacle.polygon;
       const auto &radius = msgObstacle.radius;
 
-      Obstacle obstacle;
-
       if (radius == 0.0)
       {
         this->drawPolygon(polygon, mapImage, true, cv::Scalar(0, 255, 0));
-        PolygonObstacle obstacle;
-        obstacle.polygon = polygon;
       }
       else
       {
         // Circle only contains one polygon
         const auto &point = polygon.points[0];
         this->drawCircle(radius / 2.0, point, mapImage, true, cv::Scalar(0, 255, 0));
-        CylinderObstacle obstacle;
-        obstacle.centerX = point.x;
-        obstacle.centerY = point.y;
-        obstacle.radius = radius / 2.0;
       }
-
-      obstacles.push_back(obstacle);
     }
   }
 
@@ -319,8 +241,6 @@ private:
     auto &orientation = pose.orientation;
 
     this->drawRectangle(1.0, 1.0, position, orientation, mapImage, true, cv::Scalar(0, 0, 255));
-    gate.x = position.x;
-    gate.y = position.y;
   }
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
@@ -329,7 +249,6 @@ private:
 
     // Draw map borders
     this->drawPolygon(msg, mapImage, false);
-    mapBorders = msg;
   }
 
   void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
@@ -351,6 +270,14 @@ private:
     // Update the position and orientation of the robot
     it->position = msg->pose.pose.position;
     it->orientation = msg->pose.pose.orientation;
+  }
+
+  void getVoronoi(const geometry_msgs::msg::Polygon &msg)
+  {
+    RCLCPP_INFO(this->get_logger(), "Received voroni map");
+
+    // Draw map borders
+    this->drawVoronoi(msg, mapImage);
   }
 
   void updateMap()
