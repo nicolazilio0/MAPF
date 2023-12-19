@@ -20,24 +20,39 @@ find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
+# CoordinateMapper
+add_library(CoordinateMapper
+  src/CoordinateMapper.cpp
+)
 
+# Map 
 add_executable(env_map src/env_map.cpp)
-add_executable(voronoi_planner src/voronoi.cpp)
-
 ament_target_dependencies(env_map geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+target_include_directories(env_map PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(env_map
+  CoordinateMapper
+  Eigen3::Eigen
+  ${OpenCV_LIBRARIES}
+)
 
-target_link_libraries(env_map Boost::headers)
-target_link_libraries(env_map Eigen3::Eigen)
-target_link_libraries(env_map ${OpenCV_LIBRARIES})
-
+# Voronoi
+add_executable(voronoi_planner src/voronoi.cpp)
 ament_target_dependencies(voronoi_planner geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
-
-target_link_libraries(voronoi_planner Boost::headers)
+target_include_directories(voronoi_planner PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(voronoi_planner
+  CoordinateMapper
+  Boost::headers
+)
 
 
 install(TARGETS
   env_map
   voronoi_planner
+  CoordinateMapper
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -9,6 +9,8 @@
 #include <cmath>
 #include <fstream>
 
+#include "CoordinateMapper.hpp"
+
 #include "rclcpp/rclcpp.hpp"
 
 #include <opencv2/opencv.hpp>
@@ -48,52 +50,6 @@ static const rmw_qos_profile_t rmw_qos_profile_custom =
         RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
         RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
         false};
-
-class CoordinateMapper
-{
-public:
-  CoordinateMapper(double realWorldWidth, double realWorldHeight, double imageWidth, double imageHeight)
-      : realWorldWidth_(realWorldWidth), realWorldHeight_(realWorldHeight),
-        imageWidth_(imageWidth), imageHeight_(imageHeight)
-  {
-    // Calculate scaling factors
-    scaleX_ = imageWidth_ / realWorldWidth_;
-    scaleY_ = imageHeight_ / realWorldHeight_;
-
-    // Calculate offset
-    offsetX_ = imageWidth_ / 2.0;
-    offsetY_ = imageHeight_ / 2.0;
-  }
-
-  void convertToImageCoordinates(double realX, double realY, int &imageX, int &imageY) const
-  {
-    imageX = std::round(realX * scaleX_ + offsetX_);
-    imageY = std::round(realY * scaleY_ + offsetY_);
-  }
-
-  // For symmetric world
-  void convertToImageCoordinates(double real, int &imageMeasure) const
-  {
-    imageMeasure = std::round(real * scaleX_);
-  }
-
-  void convertToRealWorldCoordinates(int imageX, int imageY, double &realX, double &realY) const
-  {
-    realX = (imageX - offsetX_) / scaleX_;
-    realY = (imageY - offsetY_) / scaleY_;
-  }
-
-private:
-  double realWorldWidth_;
-  double realWorldHeight_;
-  double imageWidth_;
-  double imageHeight_;
-
-  double scaleX_;
-  double scaleY_;
-  double offsetX_;
-  double offsetY_;
-};
 
 struct Shelfino
 {
@@ -152,23 +108,22 @@ private:
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
-  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image)
   {
-    // Convert polygon points to OpenCV points
-    std::vector<cv::Point> cvPoints;
-    for (const auto &point : polygon.points)
+    for (size_t i = 0; i < polygon.points.size() - 1; i += 2)
     {
-      cvPoints.emplace_back(point.x, point.y);
-    }
+      auto start = polygon.points[i];
+      auto end = polygon.points[i + 1];
 
-    // Draw points on the image
-    for (const auto &point : cvPoints)
-    {
-      cv::circle(image, point, 2, color, -1); // -1 indicates filled circle
+      cv::circle(image, cv::Point(start.x, start.y), 2, cv::Scalar(0, 0, 255), 2);
+      cv::circle(image, cv::Point(end.x, end.y), 2, cv::Scalar(0, 0, 255), 2);
+
+      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), cv::Scalar(2, 134, 242), 2);
     }
   }
 
-  void drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
+  void
+  drawPolygon(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, bool fill, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
     // Convert polygon points to OpenCV points
     std::vector<cv::Point> cvPoints;
@@ -177,7 +132,7 @@ private:
       int imageX, imageY;
       // fix flipped coordinates
       // TODO: maybe integrate this in the coordinateclass
-      coordinateMapper.convertToImageCoordinates(-point.y, -point.x, imageX, imageY);
+      coordinateMapper.gazebo2img(point.x, point.y, imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
 
@@ -197,10 +152,10 @@ private:
     int imageCenterX, imageCenterY;
     // fix flipped coordinates
     // TODO: maybe integrate this in the coordinateclass
-    coordinateMapper.convertToImageCoordinates(-center.y, -center.x, imageCenterX, imageCenterY);
+    coordinateMapper.gazebo2img(center.x, center.y, imageCenterX, imageCenterY);
 
     int imageRadius;
-    coordinateMapper.convertToImageCoordinates(radius, imageRadius);
+    coordinateMapper.gazebo2img(radius, imageRadius);
 
     int thickness = fill ? -1 : 2;
 
@@ -234,7 +189,7 @@ private:
       transformedCorner.y() += center.y;
 
       int imageX, imageY;
-      coordinateMapper.convertToImageCoordinates(-transformedCorner.y(), -transformedCorner.x(), imageX, imageY);
+      coordinateMapper.gazebo2img(transformedCorner.x(), transformedCorner.y(), imageX, imageY);
       cvPoints.emplace_back(imageX, imageY);
     }
 
@@ -322,7 +277,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received voroni map");
 
     // Draw map borders
-    this->drawVoronoi(msg, mapImage, cv::Scalar(100, 0, 0));
+    this->drawVoronoi(msg, mapImage);
   }
 
   void updateMap()
