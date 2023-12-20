@@ -86,15 +86,24 @@ private:
             std::cout << x << " , ";
         }
 
-        std::cout << std::endl <<"Y -------------" << std::endl;
+        std::cout << std::endl
+                  << "Y -------------" << std::endl;
 
         for (const auto &y : path_y)
         {
             std::cout << y << " , ";
         }
 
-        std::cout << std::endl << "******************" << std::endl;
+        std::cout << std::endl
+                  << "Yaw -------------" << std::endl;
 
+        for (const auto &yaw : path_yaw)
+        {
+            std::cout << yaw << " , ";
+        }
+
+        std::cout << std::endl
+                  << "******************" << std::endl;
 
         // // Log results using ROS 2 logging
         // RCLCPP_INFO(this->get_logger(), "Dubins Path Planning Results:");

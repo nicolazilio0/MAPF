@@ -14,7 +14,6 @@ DubinsPath::DubinsPath()
 Eigen::Matrix2d DubinsPath::rot_mat_2d(double angle)
 {
     Eigen::Rotation2Dd rotation(angle);
-    std::cout << rotation.toRotationMatrix() << std::endl;
     return rotation.toRotationMatrix();
 }
 
@@ -29,6 +28,10 @@ double DubinsPath::angle_mod(double x, bool zero_2_2pi, bool degree)
     if (zero_2_2pi)
     {
         mod_angle = fmod(x, 2.0 * M_PI);
+        if (mod_angle < 0)
+        {
+            mod_angle += 2.0 * M_PI;
+        }
     }
     else
     {
@@ -322,27 +325,36 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::v
         planning_funcs);
 
     // Convert a local coordinate path to the global coordinate
-    Eigen::Matrix2d rot = rot_mat_2d(-s_yaw);;
-    rot << std::cos(-s_yaw), -std::sin(-s_yaw),
-        std::sin(-s_yaw), std::cos(-s_yaw);
+    Eigen::Matrix2d rot = rot_mat_2d(-s_yaw);
 
-    Eigen::MatrixXd converted_xy(lp_x.size(), 2);
-    for (size_t i = 0; i < lp_x.size(); ++i)
-    {
-        Eigen::Vector2d local_point(lp_x[i], lp_y[i]);
-        Eigen::Vector2d global_point = rot * local_point;
-        converted_xy.row(i) = global_point + Eigen::Vector2d(s_x, s_y);
-    }
+    Eigen::VectorXd lp_x_eigen = Eigen::Map<Eigen::VectorXd>(lp_x.data(), lp_x.size());
+    Eigen::VectorXd lp_y_eigen = Eigen::Map<Eigen::VectorXd>(lp_y.data(), lp_y.size());
 
-    std::vector<double> x_list(converted_xy.col(0).data(), converted_xy.col(0).data() + converted_xy.rows());
-    std::vector<double> y_list(converted_xy.col(1).data(), converted_xy.col(1).data() + converted_xy.rows());
+    Eigen::MatrixXd stacked_matrix(2, lp_x.size());
+    stacked_matrix.row(0) = lp_x_eigen;
+    stacked_matrix.row(1) = lp_y_eigen;
 
-    Eigen::VectorXd mapped_lp_yaw = Eigen::VectorXd::Map(lp_yaw.data(), lp_yaw.size());
-    std::vector<double> yaw_list(lp_yaw.size());
-    for (size_t i = 0; i < lp_yaw.size(); ++i)
-    {
-        yaw_list[i] = angle_mod(mapped_lp_yaw[i] + s_yaw);
-    }
+    std::cout << "Stacked matrix shape: (" << stacked_matrix.rows() << ", " << stacked_matrix.cols() << ")" << std::endl;
+
+    // Transpose the matrix and apply the rotation
+    Eigen::MatrixXd converted_xy = stacked_matrix.transpose() * rot;
+
+    // Extract columns from converted_xy
+    Eigen::VectorXd x_list_eigen = converted_xy.col(0).array() + s_x;
+    Eigen::VectorXd y_list_eigen = converted_xy.col(1).array() + s_y;
+
+    // Convert lp_yaw to Eigen::VectorXd
+    Eigen::VectorXd lp_yaw_eigen = Eigen::Map<Eigen::VectorXd>(lp_yaw.data(), lp_yaw.size());
+
+    // Apply angle_mod to each element of lp_yaw_eigen
+    Eigen::VectorXd yaw_list_eigen = lp_yaw_eigen.array() + s_yaw;
+    yaw_list_eigen = yaw_list_eigen.unaryExpr([this](double angle)
+                                              { return angle_mod(angle); });
+
+    // Convert Eigen::VectorXd to std::vector<double>
+    std::vector<double> x_list(x_list_eigen.data(), x_list_eigen.data() + x_list_eigen.size());
+    std::vector<double> y_list(y_list_eigen.data(), y_list_eigen.data() + y_list_eigen.size());
+    std::vector<double> yaw_list(yaw_list_eigen.data(), yaw_list_eigen.data() + yaw_list_eigen.size());
 
     return std::make_tuple(x_list, y_list, yaw_list, modes, lengths);
 }

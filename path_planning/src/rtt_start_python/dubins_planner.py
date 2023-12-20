@@ -9,7 +9,6 @@ class DubinsPath():
                                "RLR": self._RLR, "LRL": self._LRL, }
 
     def rot_mat_2d(self, angle):
-        print(Rot.from_euler('z', angle).as_matrix()[0:2, 0:2])
         return Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
 
     def angle_mod(self, x, zero_2_2pi=False, degree=False):
