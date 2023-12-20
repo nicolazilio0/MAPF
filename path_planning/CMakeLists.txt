@@ -10,7 +10,10 @@ add_definitions("-DBOOST_BIND_GLOBAL_PLACEHOLDERS")
 
 
 find_package(ament_cmake REQUIRED)
-find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -27,7 +30,7 @@ add_library(CoordinateMapper
 
 # Map 
 add_executable(env_map src/env_map.cpp)
-ament_target_dependencies(env_map geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+ament_target_dependencies(env_map sensor_msgs cv_bridge image_transport geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
 target_include_directories(env_map PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

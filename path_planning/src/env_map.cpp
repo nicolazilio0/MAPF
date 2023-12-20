@@ -13,9 +13,14 @@
 
 #include "rclcpp/rclcpp.hpp"
 
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.hpp>
 #include <opencv2/opencv.hpp>
+
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
+
+#include "sensor_msgs/msg/image.hpp"
 
 #include "nav_msgs/msg/odometry.hpp"
 
@@ -58,6 +63,12 @@ struct Shelfino
   geometry_msgs::msg::Quaternion orientation;
 };
 
+struct Gate
+{
+  geometry_msgs::msg::Point position;
+  geometry_msgs::msg::Quaternion orientation;
+};
+
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
@@ -73,6 +84,8 @@ public:
     gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::getGates, this, _1));
     mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&EnvironmentMap::getMap, this, _1));
 
+    mapPublisher_ = this->create_publisher<sensor_msgs::msg::Image>("map_image", 10);
+
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 0);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 1);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 2);
@@ -86,7 +99,7 @@ public:
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
     cv::namedWindow("Environment Map", cv::WINDOW_AUTOSIZE);
-    mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(255, 255, 255));
+    mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(0, 0, 0));
     mapImageCopy = mapImage.clone();
   }
 
@@ -94,6 +107,7 @@ private:
   rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstaclesSubscritpion_;
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gatesSubscritpion_;
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mapPublisher_;
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0Subscritpion_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
@@ -104,6 +118,7 @@ private:
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
   std::vector<Shelfino> shelfinos;
+  Gate gate;
 
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
@@ -229,6 +244,10 @@ private:
         this->drawCircle(radius / 2.0, point, mapImage, true, cv::Scalar(0, 255, 0));
       }
     }
+
+    sensor_msgs::msg::Image::SharedPtr imgMsg;
+    imgMsg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", mapImage).toImageMsg();
+    mapPublisher_->publish(*imgMsg.get());
   }
 
   void getGates(const geometry_msgs::msg::PoseArray &msg)
@@ -236,11 +255,8 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received gate");
 
     const auto &pose = msg.poses[0];
-    const auto &position = pose.position;
-
-    auto &orientation = pose.orientation;
-
-    this->drawRectangle(1.0, 1.0, position, orientation, mapImage, true, cv::Scalar(0, 0, 255));
+    gate.position = pose.position;
+    gate.orientation = pose.orientation;
   }
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
@@ -248,7 +264,9 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received map borders");
 
     // Draw map borders
-    this->drawPolygon(msg, mapImage, false);
+    this->drawPolygon(msg, mapImage, true, cv::Scalar(255, 255, 255));
+
+    this->drawRectangle(1.0, 1.0, gate.position, gate.orientation, mapImage, true, cv::Scalar(0, 0, 255));
   }
 
   void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
