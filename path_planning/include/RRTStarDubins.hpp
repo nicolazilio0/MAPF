@@ -21,6 +21,13 @@ public:
     {
         empty = true;
     };
+    ~Node()
+    {
+        // Clear vectors to release memory
+        pathX.clear();
+        pathY.clear();
+        pathYaw.clear();
+    }
 
     double x, y, yaw, cost;
     std::vector<double> pathX, pathY, pathYaw;

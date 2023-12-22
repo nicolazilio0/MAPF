@@ -334,8 +334,6 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::v
     stacked_matrix.row(0) = lp_x_eigen;
     stacked_matrix.row(1) = lp_y_eigen;
 
-    std::cout << "Stacked matrix shape: (" << stacked_matrix.rows() << ", " << stacked_matrix.cols() << ")" << std::endl;
-
     // Transpose the matrix and apply the rotation
     Eigen::MatrixXd converted_xy = stacked_matrix.transpose() * rot;
 

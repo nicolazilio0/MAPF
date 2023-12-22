@@ -30,6 +30,7 @@
 
 #include "CoordinateMapper.hpp"
 #include "DubinsPath.hpp"
+#include "RRTStarDubins.hpp"
 
 using std::placeholders::_1;
 using namespace std::chrono_literals;
@@ -267,6 +268,27 @@ private:
 
             // Stop the timer
             plannerTimer_->cancel();
+
+            std::vector<std::vector<double>> obstacleList = {{5.5, 5, 1},
+                                                             {3, 6, 2},
+                                                             {3, 8, 2},
+                                                             {3, 10, 2},
+                                                             {7, 5, 2},
+                                                             {9, 5, 2}};
+
+            std::vector<double> start = {0.0, 0.0, 0.17453};
+            std::vector<double> goal = {10.0, 10.0, 0.0};
+
+            double rndMin = 0;
+            double rndMax = 15;
+
+            RRTStartDubins rrtStarDubins = RRTStartDubins(start, goal, obstacleList, rndMin, rndMax);
+            auto path = rrtStarDubins.planning(false);
+
+            for (const auto &point : path)
+            {
+                std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
+            }
         }
     }
 

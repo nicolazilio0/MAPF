@@ -74,11 +74,13 @@ target_include_directories(rrt_star_planner PRIVATE
 target_link_libraries(rrt_star_planner
   CoordinateMapper
   DubinsPath
+  RRTStarDubins
 )
 
 install(TARGETS
   CoordinateMapper
   DubinsPath
+  RRTStarDubins
   env_map
   voronoi_planner
   rrt_star_planner
