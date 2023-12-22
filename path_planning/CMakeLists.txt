@@ -32,6 +32,12 @@ add_library(CoordinateMapper
 add_library(DubinsPath
   src/DubinsPath.cpp
 )
+
+#
+add_library(RRTStarDubins
+  src/RRTStarDubins.cpp
+)
+
 target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
 target_link_libraries(DubinsPath Eigen3::Eigen)
 
