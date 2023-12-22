@@ -338,8 +338,8 @@ std::vector<std::vector<double>> RRTStartDubins::planning(bool searchUntilMaxIte
 
         if ((!searchUntilMaxIter) && !newNode.empty)
         {
-            size_t lastIndex = searchBestGoalNode();
-            if (lastIndex != SIZE_MAX)
+            int lastIndex = searchBestGoalNode();
+            if (lastIndex != -1)
             {
                 return generateFinalCourse(lastIndex);
             }
@@ -348,8 +348,8 @@ std::vector<std::vector<double>> RRTStartDubins::planning(bool searchUntilMaxIte
 
     std::cout << "Reached max iteration" << std::endl;
 
-    size_t lastIndex = searchBestGoalNode();
-    if (lastIndex != SIZE_MAX)
+    int lastIndex = searchBestGoalNode();
+    if (lastIndex != -1)
     {
         return generateFinalCourse(lastIndex);
     }
