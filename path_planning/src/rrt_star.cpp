@@ -276,7 +276,7 @@ private:
                                                              {7, 5, 2},
                                                              {9, 5, 2}};
 
-            std::vector<double> start = {0.0, 0.0, 0.17453};
+            std::vector<double> start = {-1, -1, 0.17453};
             std::vector<double> goal = {10.0, 10.0, 0.0};
 
             double rndMin = 0;
@@ -285,10 +285,10 @@ private:
             RRTStartDubins rrtStarDubins = RRTStartDubins(start, goal, obstacleList, rndMin, rndMax);
             auto path = rrtStarDubins.planning(false);
 
-            for (const auto &point : path)
-            {
-                std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
-            }
+            // for (const auto &point : path)
+            // {
+            //     std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
+            // }
         }
     }
 
