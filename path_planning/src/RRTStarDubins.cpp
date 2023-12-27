@@ -29,18 +29,16 @@ Node RRTStartDubins::getRandomNode()
     std::uniform_real_distribution<double> minMaxDis(minRand, maxRand);
     std::uniform_real_distribution<double> piDis(-M_PI, M_PI);
 
-    Node rnd;
-
     if (distrib(gen) > goalSampleRate)
     {
-        rnd = Node(minMaxDis(gen), minMaxDis(gen), piDis(gen));
+        Node rnd(minMaxDis(gen), minMaxDis(gen), piDis(gen));
+        return rnd;
     }
     else
     {
-        rnd = Node(end.x, end.y, end.yaw);
+        Node rnd(end.x, end.y, end.yaw);
+        return rnd;
     }
-
-    return rnd;
 }
 
 size_t RRTStartDubins::getNearestNodeIndex(const std::vector<Node> &nodeList, const Node &rndNode)
@@ -58,47 +56,46 @@ size_t RRTStartDubins::getNearestNodeIndex(const std::vector<Node> &nodeList, co
     return static_cast<size_t>(minind);
 }
 
-Node RRTStartDubins::steer(Node &fromNode, const Node &toNode)
+Node *RRTStartDubins::steer(Node &fromNode, const Node &toNode)
 {
     auto [px, py, pyaw, mode, courseLenghts] = dubinsPlanner.plan_dubins_path(fromNode.x, fromNode.y, fromNode.yaw,
                                                                               toNode.x, toNode.y, toNode.yaw,
                                                                               curvature);
     if (px.size() <= 1)
     {
-        return Node();
+        return nullptr;
     }
 
-    Node newNode(px.back(), py.back(), pyaw.back());
-    newNode.pathX = px;
-    newNode.pathY = py;
-    newNode.pathYaw = pyaw;
-    newNode.cost += std::accumulate(courseLenghts.begin(), courseLenghts.end(), 0.0,
-                                    [](double acc, double value)
-                                    {
-                                        return acc + std::abs(value);
-                                    });
-    newNode.parent = &fromNode;
+    Node *newNode = new Node(px.back(), py.back(), pyaw.back());
+    newNode->pathX = px;
+    newNode->pathY = py;
+    newNode->pathYaw = pyaw;
+    newNode->cost += std::accumulate(courseLenghts.begin(), courseLenghts.end(), 0.0,
+                                     [](double acc, double value)
+                                     {
+                                         return acc + std::abs(value);
+                                     });
+    newNode->parent = &fromNode;
 
     return newNode;
 }
 
-bool RRTStartDubins::checkCollision(const Node &node, const std::vector<std::vector<double>> &obstacleList, double robotRadius)
+bool RRTStartDubins::checkCollision(const Node *node, const std::vector<std::vector<double>> &obstacleList, double robotRadius)
 {
-    if (node.empty)
+    if (node == nullptr)
     {
         return false;
     }
-
     for (const auto &obstacle : obstacleList)
     {
         double ox = obstacle[0];
         double oy = obstacle[1];
         double size = obstacle[2];
 
-        for (size_t i = 0; i < node.pathX.size(); ++i)
+        for (size_t i = 0; i < node->pathX.size(); ++i)
         {
-            double dx = ox - node.pathX[i];
-            double dy = oy - node.pathY[i];
+            double dx = ox - node->pathX[i];
+            double dy = oy - node->pathY[i];
             double d = dx * dx + dy * dy;
 
             if (d <= std::pow((size + robotRadius), 2))
@@ -145,11 +142,6 @@ double RRTStartDubins::calcNewCost(Node &fromNode, const Node &toNode)
         fromNode.x, fromNode.y, fromNode.yaw,
         toNode.x, toNode.y, toNode.yaw, curvature);
 
-    if (px.size() <= 1) // Cannot find a Dubins path
-    {
-        return std::numeric_limits<double>::infinity();
-    }
-
     double cost = std::accumulate(courseLengths.begin(), courseLengths.end(), 0.0,
                                   [](double acc, double value)
                                   {
@@ -159,11 +151,11 @@ double RRTStartDubins::calcNewCost(Node &fromNode, const Node &toNode)
     return fromNode.cost + cost;
 }
 
-Node RRTStartDubins::chooseParent(Node &newNode, const std::vector<size_t> &nearInds)
+Node *RRTStartDubins::chooseParent(Node &newNode, const std::vector<size_t> &nearInds)
 {
     if (nearInds.empty())
     {
-        return Node(); // Return an empty node if near_inds is empty
+        return nullptr; // Return an empty node if near_inds is empty
     }
 
     // Search for the nearest cost in near_inds
@@ -172,11 +164,11 @@ Node RRTStartDubins::chooseParent(Node &newNode, const std::vector<size_t> &near
     {
 
         Node &nearNode = nodeList[i];
-        Node tempNode = steer(nearNode, newNode);
+        Node *tempNode = steer(nearNode, newNode);
 
-        if (!tempNode.empty && checkCollision(tempNode, obstacleList, robotRadius))
+        if (tempNode != nullptr && checkCollision(tempNode, obstacleList, robotRadius))
         {
-            costs.push_back(calcNewCost(nearNode, newNode));
+            costs.push_back(calcNewCost(nearNode, *tempNode));
         }
         else
         {
@@ -190,14 +182,14 @@ Node RRTStartDubins::chooseParent(Node &newNode, const std::vector<size_t> &near
     if (minCost == std::numeric_limits<double>::infinity())
     {
         std::cout << "There is no good path. (minCost is inf)" << std::endl;
-        return Node(); // Return an empty node if there is no good path
+        return nullptr; // Return an empty node if there is no good path
     }
 
     size_t minInd = nearInds[std::distance(costs.begin(), std::min_element(costs.begin(), costs.end()))];
-    newNode = steer(nodeList[minInd], newNode);
-    newNode.cost = minCost;
+    Node *chosenNode = steer(nodeList[minInd], newNode);
+    chosenNode->cost = minCost;
 
-    return newNode;
+    return chosenNode;
 }
 
 void RRTStartDubins::propagateCostToLeaves(Node *parentNode)
@@ -217,14 +209,14 @@ void RRTStartDubins::rewire(Node &newNode, const std::vector<size_t> &nearInds)
     for (size_t i : nearInds)
     {
         Node &nearNode = nodeList[i];
-        Node edgeNode = steer(newNode, nearNode);
+        Node *edgeNodePtr = steer(newNode, nearNode);
 
-        if (!edgeNode.empty)
+        if (edgeNodePtr != nullptr)
         {
-            edgeNode.cost = calcNewCost(newNode, nearNode);
+            edgeNodePtr->cost = calcNewCost(newNode, nearNode);
 
-            bool noCollision = checkCollision(edgeNode, obstacleList, robotRadius);
-            bool improvedCost = nearNode.cost > edgeNode.cost;
+            bool noCollision = checkCollision(edgeNodePtr, obstacleList, robotRadius);
+            bool improvedCost = nearNode.cost > edgeNodePtr->cost;
 
             if (noCollision && improvedCost)
             {
@@ -232,10 +224,10 @@ void RRTStartDubins::rewire(Node &newNode, const std::vector<size_t> &nearInds)
                 {
                     if (node.parent == &nodeList[i])
                     {
-                        node.parent = &edgeNode;
+                        node.parent = edgeNodePtr;
                     }
                 }
-                nodeList[i] = edgeNode;
+                nodeList[i] = *edgeNodePtr;
                 propagateCostToLeaves(&nodeList[i]);
             }
         }
@@ -295,20 +287,42 @@ int RRTStartDubins::searchBestGoalNode()
 std::vector<std::vector<double>> RRTStartDubins::generateFinalCourse(int goalIndex)
 {
     std::vector<std::vector<double>> path;
-    path.push_back({start.x, start.y});
+    path.push_back({end.x, end.y});
+
+    std::cout << "Generating Final course" << std::endl;
 
     Node currentNode = nodeList[goalIndex];
 
     while (currentNode.parent != nullptr)
     {
-        for (size_t i = 0; i < currentNode.pathX.size(); ++i)
+        // std::cout << "Node " << currentNode.x << "," << currentNode.y << std::endl;
+
+        // std::cout << currentNode.pathX.size() << " " << currentNode.pathY.size() << std::endl;
+
+        for (size_t i = currentNode.pathX.size() - 1; i > 0; --i) // Use >= here
         {
+            // std::cout << currentNode.pathX[i] << " " << currentNode.pathY[i] << std::endl;
             path.push_back({currentNode.pathX[i], currentNode.pathY[i]});
         }
-        currentNode = *(currentNode.parent);
+
+        try
+        {
+            std::cout << "Assigning next " << currentNode.parent << " :" << currentNode.parent->x << "," << currentNode.parent->y << std::endl;
+            std::cout << "Size " << currentNode.parent->pathX.size() << "," << currentNode.parent->pathY.size() << std::endl;
+            if (currentNode.parent->pathX.size() == 0 || currentNode.parent->pathX.size() > 1000 ||
+                currentNode.parent->pathY.size() == 0 || currentNode.parent->pathY.size() > 1000)
+            {
+                break;
+            }
+            currentNode = *(currentNode.parent);
+        }
+        catch (...)
+        {
+            break;
+        }
     }
 
-    path.push_back({end.x, end.y});
+    path.push_back({start.x, start.y});
 
     return path;
 }
@@ -322,21 +336,21 @@ std::vector<std::vector<double>> RRTStartDubins::planning(bool searchUntilMaxIte
         std::cout << "Iter: " << i << ", number of nodes: " << nodeList.size() << std::endl;
         Node rnd = getRandomNode();
         int nearestInd = getNearestNodeIndex(nodeList, rnd);
-        Node newNode = steer(nodeList[nearestInd], rnd);
+        Node *newNode = steer(nodeList[nearestInd], rnd);
 
         if (checkCollision(newNode, obstacleList, robotRadius))
         {
-            std::vector<size_t> nearIndexes = findNearNodes(newNode);
-            newNode = chooseParent(newNode, nearIndexes);
+            std::vector<size_t> nearIndexes = findNearNodes(*newNode);
+            newNode = chooseParent(*newNode, nearIndexes);
 
-            if (!newNode.empty)
+            if (newNode != nullptr)
             {
-                nodeList.push_back(newNode);
-                rewire(newNode, nearIndexes);
+                nodeList.push_back(*newNode);
+                rewire(*newNode, nearIndexes);
             }
         }
 
-        if ((!searchUntilMaxIter) && !newNode.empty)
+        if ((!searchUntilMaxIter) && newNode != nullptr)
         {
             int lastIndex = searchBestGoalNode();
             if (lastIndex != -1)

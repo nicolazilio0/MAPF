@@ -13,14 +13,7 @@
 class Node
 {
 public:
-    Node(double _x, double _y, double _yaw) : x(_x), y(_y), yaw(_yaw), cost(0.0), parent(nullptr)
-    {
-        empty = false;
-    };
-    Node()
-    {
-        empty = true;
-    };
+    Node(double _x, double _y, double _yaw) : x(_x), y(_y), yaw(_yaw), cost(0.0), parent(nullptr){};
     ~Node()
     {
         // Clear vectors to release memory
@@ -32,7 +25,6 @@ public:
     double x, y, yaw, cost;
     std::vector<double> pathX, pathY, pathYaw;
     Node *parent;
-    bool empty;
 };
 
 class RRTStartDubins
@@ -44,11 +36,11 @@ public:
 
     Node getRandomNode();
     static size_t getNearestNodeIndex(const std::vector<Node> &nodeList, const Node &rndNode);
-    Node steer(Node &fromNode, const Node &toNode);
-    static bool checkCollision(const Node &node, const std::vector<std::vector<double>> &obstacleList, double robotRadius);
+    Node *steer(Node &fromNode, const Node &toNode);
+    static bool checkCollision(const Node *node, const std::vector<std::vector<double>> &obstacleList, double robotRadius);
     std::vector<size_t> findNearNodes(const Node &newNode);
     double calcNewCost(Node &fromNode, const Node &toNode);
-    Node chooseParent(Node &newNode, const std::vector<size_t> &nearInds);
+    Node *chooseParent(Node &newNode, const std::vector<size_t> &nearInds);
     void propagateCostToLeaves(Node *parentNode);
     void rewire(Node &newNode, const std::vector<size_t> &nearInds);
     double calcDistToGoal(double x, double y);
