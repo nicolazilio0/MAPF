@@ -8,6 +8,7 @@
 #include <random>
 #include <cmath>
 #include <fstream>
+#include <chrono>
 
 #include "rclcpp/rclcpp.hpp"
 
@@ -105,7 +106,7 @@ struct MapBorder
     geometry_msgs::msg::Polygon polygon;
     int discretizationPoint = 20;
 
-    std::vector<std::vector<double>> discretizeBorder(double radius)
+    std::vector<std::vector<double>> discretizeBorder(double radius = 0.5)
     {
         std::vector<std::vector<double>> points;
 
@@ -114,16 +115,12 @@ struct MapBorder
             const auto &startPoint = polygon.points[i];
             const auto &endPoint = polygon.points[(i + 1) % polygon.points.size()];
 
-            Eigen::VectorXd xVals = Eigen::VectorXd::LinSpaced(discretizationPoint, startPoint.x, endPoint.x);
-            Eigen::VectorXd yVals = Eigen::VectorXd::LinSpaced(discretizationPoint, startPoint.y, endPoint.y);
-
-            Eigen::MatrixXd edgePoints = xVals.replicate(1, discretizationPoint);
-            edgePoints.rowwise() += yVals.transpose();
-
-            for (int j = 0; j < discretizationPoint; ++j)
+            // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
             {
-                std::vector<double> point = {edgePoints(j, 0), edgePoints(j, 1), radius};
-                points.push_back(point);
+                double x = startPoint[0] + (endPoint[0] - startPoint[0]) * static_cast<double>(j) / numPointsPerEdge;
+                double y = startPoint[1] + (endPoint[1] - startPoint[1]) * static_cast<double>(j) / numPointsPerEdge;
+
+                points.push_back({x, y, radius});
             }
         }
 
@@ -266,35 +263,48 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Executing RRT*");
 
-            // Stop the timer
+            // Stop the timer callback
             plannerTimer_->cancel();
 
-            std::vector<std::vector<double>> obstacleList = {
-                {5.5, 5, 1},
-                {3, 6, 2},
-                {3, 8, 2},
-                {3, 10, 2},
-                {7, 5, 2},
-                {9, 5, 2}};
+            std::vector<std::vector<double>> circular_obstacles;
+
+            for (const auto &obstaclePtr : obstacles)
+            {
+                std::vector<double> obstacle = obstaclePtr->getObstacle();
+                std::cout << "[ " << obstacle[0] << " , " << obstacle[1] << " , " << obstacle[2] << " ]" << std::endl;
+                circular_obstacles.push_back(obstacle);
+            }
+
+            std::vector<std::vector<double>> discretize_map_borders;
+
+            for (std::vector<double> obstacle : mapBorder.discretizeBorder())
+            {
+                std::cout << "[ " << obstacle[0] << " , " << obstacle[1] << " , " << obstacle[2] << " ]" << std::endl;
+                circular_obstacles.push_back(obstacle);
+            }
 
             // Define start and goal configurations
-            rrtstar::Node *start = new rrtstar::Node(-1.0, -1.0, 0.17453); // Assuming radians for the yaw
-            rrtstar::Node *goal = new rrtstar::Node(10.0, 10.0, 0.0);
+            rrtstar::Node *start = new rrtstar::Node(0, 0, 0.0); // Assuming radians for the yaw
+            rrtstar::Node *goal = new rrtstar::Node(1.0, 4.42, 0.0);
 
             // Define random area
-            double rndMin = 0;
-            double rndMax = 15;
+            double rndMin = -9;
+            double rndMax = 9;
 
             // Create an instance of RRTStarDubins
-            rrtstar::RRTStarDubins rrtStarDubins(start, goal, obstacleList, rndMin, rndMax);
+            rrtstar::RRTStarDubins rrtStarDubins(start, goal, circular_obstacles, rndMin, rndMax);
 
             // Perform path planning
+            auto start_time = std::chrono::high_resolution_clock::now();
             auto path = rrtStarDubins.planning(false);
+            auto stop_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
+            std::cout << "Path 1 founded in: " << duration.count() << "milliseconds" << std::endl;
 
-            for (const auto &point : path)
-            {
-                std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
-            }
+            // for (const auto &point : path)
+            // {
+            //     std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
+            // }
         }
     }
 

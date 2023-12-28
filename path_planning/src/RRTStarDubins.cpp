@@ -310,7 +310,7 @@ std::vector<std::vector<double>> RRTStarDubins::planning(bool search_until_max_i
 
     for (int i = 0; i < max_iter; ++i)
     {
-        std::cout << "Iter: " << i << ", number of nodes: " << node_list.size() << std::endl;
+        // std::cout << "Iter: " << i << ", number of nodes: " << node_list.size() << std::endl;
 
         Node *rnd = get_random_node();
         Node *nearest_node = get_nearest_node(rnd);
