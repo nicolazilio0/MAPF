@@ -13,6 +13,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "nav_msgs/msg/odometry.hpp"
+#include "nav_msgs/msg/path.hpp"
 
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/point32.hpp"
@@ -21,6 +22,7 @@
 
 #include "geometry_msgs/msg/pose_array.hpp"
 #include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include "obstacles_msgs/msg/obstacle_array_msg.hpp"
 #include "obstacles_msgs/msg/obstacle_msg.hpp"
@@ -49,6 +51,19 @@ static const rmw_qos_profile_t rmw_qos_profile_custom =
         RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
         RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
         false};
+
+struct Shelfino
+{
+    int id;
+    geometry_msgs::msg::Point position;
+    geometry_msgs::msg::Quaternion orientation;
+};
+
+struct Gate
+{
+    geometry_msgs::msg::Point position;
+    geometry_msgs::msg::Quaternion orientation;
+};
 
 struct Obstacle
 {
@@ -128,13 +143,6 @@ struct MapBorder
     }
 };
 
-struct Shelfino
-{
-    int id;
-    geometry_msgs::msg::Point position;
-    geometry_msgs::msg::Quaternion orientation;
-};
-
 class RRTStarDubinsPlanner : public rclcpp::Node
 {
 public:
@@ -144,11 +152,14 @@ public:
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
         obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&RRTStarDubinsPlanner::getObstacles, this, _1));
+        gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&RRTStarDubinsPlanner::getGates, this, _1));
         mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&RRTStarDubinsPlanner::getMap, this, _1));
 
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 0);
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 1);
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 2);
+
+        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10);
 
         shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
         shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
@@ -157,29 +168,41 @@ public:
         obstaclesAquired = false;
         shelfinosAquired = false;
         mapAquired = false;
+        gateAquired = false;
+
+        rndMin = -9;
+        rndMax = 9;
 
         plannerTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RRTStarDubinsPlanner::generateRoadmap, this));
     }
 
 private:
     rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstaclesSubscritpion_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gatesSubscritpion_;
     rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
 
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0Subscritpion_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
 
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino0PathPublisher_;
+
     MapBorder mapBorder;
     std::vector<std::unique_ptr<Obstacle>> obstacles;
     std::vector<Shelfino> shelfinos;
+    Gate gate;
 
     CoordinateMapper coordinateMapper;
     DubinsPath dubinsPath;
     rclcpp::TimerBase::SharedPtr plannerTimer_;
 
-    bool obstaclesAquired;
-    bool shelfinosAquired;
     bool mapAquired;
+    bool obstaclesAquired;
+    bool gateAquired;
+    bool shelfinosAquired;
+
+    double rndMin;
+    double rndMax;
 
     // Callbacks for topic handling
     void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
@@ -214,6 +237,16 @@ private:
         }
 
         obstaclesAquired = true;
+    }
+    void getGates(const geometry_msgs::msg::PoseArray &msg)
+    {
+        RCLCPP_INFO(this->get_logger(), "Received gate");
+
+        const auto &pose = msg.poses[0];
+        gate.position = pose.position;
+        gate.orientation = pose.orientation;
+
+        gateAquired = true;
     }
 
     void getMap(const geometry_msgs::msg::Polygon &msg)
@@ -259,13 +292,14 @@ private:
 
     void generateRoadmap()
     {
-        if (obstaclesAquired && shelfinosAquired && mapAquired)
+        if (obstaclesAquired && gateAquired && shelfinosAquired && mapAquired)
         {
             RCLCPP_INFO(this->get_logger(), "Executing RRT*");
 
             // Stop the timer callback
             plannerTimer_->cancel();
 
+            // Add obstacles to the obstacle list
             std::vector<std::vector<double>> circular_obstacles;
 
             for (const auto &obstaclePtr : obstacles)
@@ -274,6 +308,7 @@ private:
                 circular_obstacles.push_back(obstacle);
             }
 
+            // Discretize map borders and add them to obstacle list
             std::vector<std::vector<double>> discretize_map_borders;
 
             for (std::vector<double> obstacle : mapBorder.discretizeBorder())
@@ -281,13 +316,14 @@ private:
                 circular_obstacles.push_back(obstacle);
             }
 
-            // Define start and goal configurations
-            rrtstar::Node *start = new rrtstar::Node(0, 0, 0.0); // Assuming radians for the yaw
-            rrtstar::Node *goal = new rrtstar::Node(0.92, 6.42, M_PI / 2.0);
+            double final_orientation = M_PI / 2.0;
+            final_orientation *= std::signbit(gate.position.y) ? -1 : 1;
+            rrtstar::Node *goal = new rrtstar::Node(gate.position.x, gate.position.y, final_orientation);
 
-            // Define random area
-            double rndMin = -9;
-            double rndMax = 9;
+            // TODO: loop for all shelfinos
+
+            auto shelfino0 = shelfinos[0];
+            rrtstar::Node *start = new rrtstar::Node(shelfino0.position.x, shelfino0.position.y, 0.0);
 
             // Create an instance of RRTStarDubins
             rrtstar::RRTStarDubins rrtStarDubins(start, goal, circular_obstacles, rndMin, rndMax);
@@ -299,10 +335,20 @@ private:
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
             std::cout << "Path size: " << path.size() << " founded in: " << duration.count() << "milliseconds" << std::endl;
 
-            // for (const auto &point : path)
-            // {
-            //     std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
-            // }
+            // Iterate in reverse the path
+            nav_msgs::msg::Path shelfino0_path;
+            for (auto it = path.rbegin(); it != path.rend(); ++it)
+            {
+                const auto &point = *it;
+
+                geometry_msgs::msg::PoseStamped poseStamped;
+                poseStamped.pose.position.x = point[0];
+                poseStamped.pose.position.y = point[1];
+
+                shelfino0_path.poses.push_back(poseStamped);
+            }
+
+            shelfino0PathPublisher_->publish(shelfino0_path);
         }
     }
 
