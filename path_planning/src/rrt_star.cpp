@@ -278,23 +278,23 @@ private:
                 {9, 5, 2}};
 
             // Define start and goal configurations
-            std::vector<double> start = {-1, -1, 0.17453}; // Assuming radians for the yaw
-            std::vector<double> goal = {10.0, 10.0, 0.0};
+            rrtstar::Node *start = new rrtstar::Node(-1.0, -1.0, 0.17453); // Assuming radians for the yaw
+            rrtstar::Node *goal = new rrtstar::Node(10.0, 10.0, 0.0);
 
             // Define random area
             double rndMin = 0;
             double rndMax = 15;
 
             // Create an instance of RRTStarDubins
-            RRTStarDubins rrtStarDubins(start, goal, obstacleList, rndMin, rndMax);
+            rrtstar::RRTStarDubins rrtStarDubins(start, goal, obstacleList, rndMin, rndMax);
 
             // Perform path planning
             auto path = rrtStarDubins.planning(false);
 
-            // for (const auto &point : path)
-            // {
-            //     std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
-            // }
+            for (const auto &point : path)
+            {
+                std::cout << "[" << point[0] << ", " << point[1] << "]" << std::endl;
+            }
         }
     }
 
