@@ -104,9 +104,8 @@ struct CylinderObstacle : Obstacle
 struct MapBorder
 {
     geometry_msgs::msg::Polygon polygon;
-    int discretizationPoint = 20;
 
-    std::vector<std::vector<double>> discretizeBorder(double radius = 0.5)
+    std::vector<std::vector<double>> discretizeBorder(int discretizationPoint = 20, double radius = 0.01)
     {
         std::vector<std::vector<double>> points;
 
@@ -116,9 +115,10 @@ struct MapBorder
             const auto &endPoint = polygon.points[(i + 1) % polygon.points.size()];
 
             // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
+            for (int j = 0; j < discretizationPoint; ++j)
             {
-                double x = startPoint[0] + (endPoint[0] - startPoint[0]) * static_cast<double>(j) / numPointsPerEdge;
-                double y = startPoint[1] + (endPoint[1] - startPoint[1]) * static_cast<double>(j) / numPointsPerEdge;
+                double x = startPoint.x + (endPoint.x - startPoint.x) * static_cast<double>(j) / discretizationPoint;
+                double y = startPoint.y + (endPoint.y - startPoint.y) * static_cast<double>(j) / discretizationPoint;
 
                 points.push_back({x, y, radius});
             }
@@ -271,7 +271,6 @@ private:
             for (const auto &obstaclePtr : obstacles)
             {
                 std::vector<double> obstacle = obstaclePtr->getObstacle();
-                std::cout << "[ " << obstacle[0] << " , " << obstacle[1] << " , " << obstacle[2] << " ]" << std::endl;
                 circular_obstacles.push_back(obstacle);
             }
 
@@ -279,13 +278,12 @@ private:
 
             for (std::vector<double> obstacle : mapBorder.discretizeBorder())
             {
-                std::cout << "[ " << obstacle[0] << " , " << obstacle[1] << " , " << obstacle[2] << " ]" << std::endl;
                 circular_obstacles.push_back(obstacle);
             }
 
             // Define start and goal configurations
             rrtstar::Node *start = new rrtstar::Node(0, 0, 0.0); // Assuming radians for the yaw
-            rrtstar::Node *goal = new rrtstar::Node(1.0, 4.42, 0.0);
+            rrtstar::Node *goal = new rrtstar::Node(0.92, 6.42, M_PI / 2.0);
 
             // Define random area
             double rndMin = -9;
@@ -299,7 +297,7 @@ private:
             auto path = rrtStarDubins.planning(false);
             auto stop_time = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
-            std::cout << "Path 1 founded in: " << duration.count() << "milliseconds" << std::endl;
+            std::cout << "Path size: " << path.size() << " founded in: " << duration.count() << "milliseconds" << std::endl;
 
             // for (const auto &point : path)
             // {
