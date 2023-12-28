@@ -160,6 +160,8 @@ public:
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 2);
 
         shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10);
+        shelfino1PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino1/rrtstar_path", 10);
+        shelfino2PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino2/rrtstar_path", 10);
 
         shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
         shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
@@ -186,6 +188,8 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
 
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino0PathPublisher_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino1PathPublisher_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino2PathPublisher_;
 
     MapBorder mapBorder;
     std::vector<std::unique_ptr<Obstacle>> obstacles;
@@ -320,53 +324,67 @@ private:
             final_orientation *= std::signbit(gate.position.y) ? -1 : 1;
             rrtstar::Node *goal = new rrtstar::Node(gate.position.x, gate.position.y, final_orientation);
 
-            // TODO: loop for all shelfinos
-
-            auto shelfino0 = shelfinos[0];
-            rrtstar::Node *start = new rrtstar::Node(shelfino0.position.x, shelfino0.position.y, 0.0);
-
-            // Create an instance of RRTStarDubins
-            rrtstar::RRTStarDubins rrtStarDubins(start, goal, circular_obstacles, rndMin, rndMax);
-
-            // Perform path planning
-            auto start_time = std::chrono::high_resolution_clock::now();
-            auto path = rrtStarDubins.planning(false);
-            auto stop_time = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
-            std::cout << "Path size: " << path.size() << " founded in: " << duration.count() << "milliseconds" << std::endl;
-
-            // Iterate in reverse the path
-            nav_msgs::msg::Path shelfino0_path;
-            for (auto it = path.rbegin(); it != path.rend(); ++it)
+            for (const auto &shelfino : shelfinos)
             {
-                const auto &point = *it;
+                auto id = shelfino.id;
+                auto position = shelfino.position;
+                auto orientation = shelfino.orientation;
 
-                geometry_msgs::msg::PoseStamped poseStamped;
-                poseStamped.pose.position.x = point[0];
-                poseStamped.pose.position.y = point[1];
+                // Get shelfino's yaw angle
+                double t0 = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y);
+                double t1 = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z);
+                double yaw = std::atan2(t0, t1);
 
-                shelfino0_path.poses.push_back(poseStamped);
+                rrtstar::Node *start = new rrtstar::Node(position.x, position.y, yaw);
+
+                // Create an instance of RRTStarDubins
+                rrtstar::RRTStarDubins rrtStarDubins(start, goal, circular_obstacles, rndMin, rndMax);
+
+                // Perform path planning
+                std::vector<std::vector<double>> path;
+
+                auto start_time = std::chrono::high_resolution_clock::now();
+
+                // Repeat the planning until a non-empty path is obtained
+                do
+                {
+                    path = rrtStarDubins.planning(false);
+                } while (path.empty());
+
+                auto stop_time = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
+
+                std::cout << "Path for shelfino" << id << " founded in: " << duration.count() << "milliseconds" << std::endl;
+
+                // Iterate in reverse the path
+                nav_msgs::msg::Path shelfino_path;
+                for (auto it = path.rbegin(); it != path.rend(); ++it)
+                {
+                    const auto &point = *it;
+
+                    geometry_msgs::msg::PoseStamped poseStamped;
+                    poseStamped.pose.position.x = point[0];
+                    poseStamped.pose.position.y = point[1];
+                    // TODO find if orientation is needed
+
+                    shelfino_path.poses.push_back(poseStamped);
+                }
+
+                // Sent the path accordingly to the shelfino's id
+                switch (id)
+                {
+                case 0:
+                    shelfino0PathPublisher_->publish(shelfino_path);
+                    break;
+                case 1:
+                    shelfino1PathPublisher_->publish(shelfino_path);
+                    break;
+                case 2:
+                    shelfino2PathPublisher_->publish(shelfino_path);
+                    break;
+                }
             }
-
-            shelfino0PathPublisher_->publish(shelfino0_path);
         }
-    }
-
-    void dubins()
-    {
-        double start_x = 1.0;
-        double start_y = 1.0;
-        double start_yaw = M_PI / 4.0; // 45 degrees in radians
-
-        double end_x = -3.0;
-        double end_y = -3.0;
-        double end_yaw = -M_PI / 4.0; // -45 degrees in radians
-
-        double curvature = 1.0;
-
-        std::cout << "starting dubins path \n";
-        // Call the plan_dubins_path method
-        auto [path_x, path_y, path_yaw, mode, lengths] = dubinsPath.plan_dubins_path(start_x, start_y, start_yaw, end_x, end_y, end_yaw, curvature);
     }
 };
 

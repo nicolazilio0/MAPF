@@ -13,7 +13,7 @@ RRTStarDubins::RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<do
       max_iter(max_iter),
       obstacle_list(obstacle_list),
       connect_circle_dist(connect_circle_dist),
-      curvature(1.0),
+      curvature(0.75),
       goal_yaw_th(0.0174532),
       goal_xy_th(0.5),
       robot_radius(robot_radius),
@@ -23,11 +23,10 @@ RRTStarDubins::RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<do
 
 Node *RRTStarDubins::get_random_node()
 {
-    if (std::rand() % 100 > goal_sample_rate)
-    {
-        std::random_device rd;
-        std::default_random_engine generator(rd());
 
+    std::uniform_int_distribution<int> int_distribution(0, 100);
+    if (int_distribution(generator) > goal_sample_rate)
+    {
         std::uniform_real_distribution<double> x_distribution(min_rand, max_rand);
         std::uniform_real_distribution<double> y_distribution(min_rand, max_rand);
         std::uniform_real_distribution<double> yaw_distribution(-M_PI, M_PI);
@@ -338,7 +337,7 @@ std::vector<std::vector<double>> RRTStarDubins::planning(bool search_until_max_i
         }
     }
 
-    std::cout << "Reached max iteration" << std::endl;
+    // std::cout << "Reached max iteration" << std::endl;
 
     Node *best_node = search_best_goal_node();
     if (best_node)

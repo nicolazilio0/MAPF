@@ -101,7 +101,12 @@ public:
 
     // --- RRT*Dubins visualizer ---
     std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 0);
+    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 1);
+    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 2);
+
     shelfino0RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10, shelfino0RRTStar);
+    shelfino1RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino1/rrtstar_path", 10, shelfino1RRTStar);
+    shelfino2RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino2/rrtstar_path", 10, shelfino2RRTStar);
 
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
@@ -121,11 +126,12 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2Subscritpion_;
 
   // --- Voronoi visualizer ---
-
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr voronoiSubscritpion_;
 
   // --- RRT*Dubins visualizer ---
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0RRTStarSubscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1RRTStarSubscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2RRTStarSubscritpion_;
 
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
@@ -135,7 +141,7 @@ private:
   CoordinateMapper coordinateMapper;
   rclcpp::TimerBase::SharedPtr mapUpdateTimer_;
 
-  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image)
+  void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, const cv::Scalar &color = cv::Scalar(2, 134, 242))
   {
     for (size_t i = 0; i < polygon.points.size() - 1; i += 2)
     {
@@ -145,11 +151,11 @@ private:
       cv::circle(image, cv::Point(start.x, start.y), 2, cv::Scalar(0, 0, 255), 2);
       cv::circle(image, cv::Point(end.x, end.y), 2, cv::Scalar(0, 0, 255), 2);
 
-      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), cv::Scalar(2, 134, 242), 2);
+      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), color, 2);
     }
   }
 
-  void drawPath(const nav_msgs::msg::Path::SharedPtr &msg, cv::Mat &image)
+  void drawPath(const nav_msgs::msg::Path::SharedPtr &msg, cv::Mat &image, const cv::Scalar &color = cv::Scalar(0, 0, 0))
   {
 
     for (size_t i = 0; i < msg->poses.size() - 1; ++i)
@@ -161,7 +167,7 @@ private:
       coordinateMapper.gazebo2img(start.x, start.y, image1X, image1Y);
       coordinateMapper.gazebo2img(end.x, end.y, image2X, image2Y);
 
-      cv::line(image, cv::Point(image1X, image1Y), cv::Point(image2X, image2Y), cv::Scalar(0, 0, 0), 2);
+      cv::line(image, cv::Point(image1X, image1Y), cv::Point(image2X, image2Y), color, 2);
     }
   }
 
@@ -329,7 +335,9 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "Received RRTStar map");
 
-    this->drawPath(msg, mapImage);
+    int colorIdentifier = 50 + (50 * robotId);
+
+    this->drawPath(msg, mapImage, cv::Scalar(colorIdentifier, colorIdentifier, colorIdentifier));
   }
 
   void updateMap()
