@@ -3,8 +3,7 @@
 
 #include <iostream>
 #include <cmath>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Dense>
+#include <cstdlib>
 #include <random>
 #include <limits>
 
@@ -13,50 +12,53 @@
 class Node
 {
 public:
-    Node(double _x, double _y, double _yaw) : x(_x), y(_y), yaw(_yaw), cost(0.0){};
+    double x;
+    double y;
+    double yaw;
+    std::vector<double> path_x;
+    std::vector<double> path_y;
+    std::vector<double> path_yaw;
+    const Node *parent;
+    double cost;
 
-    double x, y, yaw, cost;
-    std::vector<double> pathX, pathY, pathYaw;
-    Node *parent = nullptr;
+    Node(double x, double y, double yaw) : x(x), y(y), yaw(yaw), parent(nullptr){};
 };
 
-class RRTStartDubins
+class RRTStarDubins
 {
 public:
-    RRTStartDubins(std::vector<double> _start, std::vector<double> _goal, std::vector<std::vector<double>> _obstacleList,
-                   double _minRand, double _maxRand, int _goalSampleRate = 10, int _maxIter = 150,
-                   double _connectCircleDist = 50.0, double _curvature = 1.0, double _robotRadius = 0.0);
-
-    Node getRandomNode();
-    size_t getNearestNodeIndex(Node *rndNode);
-    Node *steer(Node *fromNode, Node *toNode);
-    static bool checkCollision(const Node *node, std::vector<std::vector<double>> &obstacleList, double robotRadius);
-    std::vector<size_t> findNearNodes(Node *newNode);
-    double calcNewCost(Node *fromNode, Node *toNode);
-    Node *chooseParent(Node *newNode, std::vector<size_t> &nearInds);
-    void propagateCostToLeaves(Node *parentNode);
-    void rewire(Node *newNode, const std::vector<size_t> &nearInds);
-    double calcDistToGoal(double x, double y);
-    int searchBestGoalNode();
-    std::vector<std::vector<double>> generateFinalCourse(int goalIndex);
-    std::vector<std::vector<double>> planning(bool searchUntilMaxIter);
-
-private:
     Node start;
     Node end;
-    double minRand;
-    double maxRand;
-    int goalSampleRate;
-    int maxIter;
+    double min_rand;
+    double max_rand;
+    int goal_sample_rate;
+    int max_iter;
+    std::vector<std::vector<double>> obstacle_list;
+    double connect_circle_dist;
     double curvature;
-    double goalYawThr;
-    double goalXYThr;
-    double robotRadius;
-    double connectCircleDist;
-    std::vector<std::vector<double>> obstacleList;
-    std::vector<Node> nodeList;
+    double goal_yaw_th;
+    double goal_xy_th;
+    double robot_radius;
+    mutable DubinsPath dubbins_planner;
+    std::vector<Node> node_list;
 
-    DubinsPath dubinsPlanner;
+    RRTStarDubins(std::vector<double> start, std::vector<double> goal, std::vector<std::vector<double>> obstacle_list,
+                  double min_rand, double max_rand, int goal_sample_rate = 10, int max_iter = 100,
+                  double connect_circle_dist = 50.0, double robot_radius = 0.0);
+
+    Node get_random_node();
+    size_t get_nearest_node_index(const std::vector<Node> &node_list, const Node &rnd_node) const;
+    Node *steer(const Node &from_node, const Node &to_node);
+    bool check_collision(const Node *node, const std::vector<std::vector<double>> &obstacle_list, double robot_radius) const;
+    std::vector<size_t> find_near_nodes(const Node &new_node) const;
+    double calc_new_cost(const Node &from_node, const Node &to_node) const;
+    Node *choose_parent(const Node &new_node, const std::vector<size_t> &near_inds);
+    void propagate_cost_to_leaves(Node *parent_node);
+    void rewire(const Node &new_node, const std::vector<size_t> &near_inds);
+    double calc_dist_to_goal(double x, double y) const;
+    int search_best_goal_node() const;
+    std::vector<std::vector<double>> generate_final_course(int goal_index) const;
+    std::vector<std::vector<double>> planning(bool search_until_max_iter = true);
 };
 
 #endif

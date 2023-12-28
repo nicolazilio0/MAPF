@@ -269,20 +269,26 @@ private:
             // Stop the timer
             plannerTimer_->cancel();
 
-            std::vector<std::vector<double>> obstacleList = {{5.5, 5, 1},
-                                                             {3, 6, 2},
-                                                             {3, 8, 2},
-                                                             {3, 10, 2},
-                                                             {7, 5, 2},
-                                                             {9, 5, 2}};
+            std::vector<std::vector<double>> obstacleList = {
+                {5.5, 5, 1},
+                {3, 6, 2},
+                {3, 8, 2},
+                {3, 10, 2},
+                {7, 5, 2},
+                {9, 5, 2}};
 
-            std::vector<double> start = {-1, -1, 0.17453};
+            // Define start and goal configurations
+            std::vector<double> start = {-1, -1, 0.17453}; // Assuming radians for the yaw
             std::vector<double> goal = {10.0, 10.0, 0.0};
 
+            // Define random area
             double rndMin = 0;
             double rndMax = 15;
 
-            RRTStartDubins rrtStarDubins = RRTStartDubins(start, goal, obstacleList, rndMin, rndMax);
+            // Create an instance of RRTStarDubins
+            RRTStarDubins rrtStarDubins(start, goal, obstacleList, rndMin, rndMax);
+
+            // Perform path planning
             auto path = rrtStarDubins.planning(false);
 
             // for (const auto &point : path)
