@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(obstacles_msgs REQUIRED)
@@ -43,6 +44,7 @@ ament_target_dependencies(
   ${PROJECT_NAME}_lib
   "geometry_msgs"
   "rclcpp"
+  "rclcpp_lifecycle"
   "gazebo_msgs"
   "obstacles_msgs"
   "tf2"
@@ -64,6 +66,7 @@ foreach(NODE ${NODES})
     ${NODE}
     "geometry_msgs"
     "rclcpp"
+    "rclcpp_lifecycle"
     "gazebo_msgs"
     "obstacles_msgs"
     "tf2"
@@ -95,6 +98,7 @@ if(BUILD_TESTING)
   ament_target_dependencies(${PROJECT_NAME}_tests
     "geometry_msgs"
     "rclcpp"
+    "rclcpp_lifecycle"
     "std_msgs"
     "gazebo_msgs"
     "obstacles_msgs"
