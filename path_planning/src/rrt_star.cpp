@@ -147,7 +147,7 @@ class RRTStarDubinsPlanner : public rclcpp::Node
 {
 public:
     RRTStarDubinsPlanner()
-        : Node("rrtstardubins_planner"), coordinateMapper(17, 17, 750, 750)
+        : Node("rrtstardubins_planner"), coordinateMapper(20, 20, 750, 750)
     {
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
@@ -172,8 +172,8 @@ public:
         mapAquired = false;
         gateAquired = false;
 
-        rndMin = -9;
-        rndMax = 9;
+        rndMin = -10;
+        rndMax = 10;
 
         plannerTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RRTStarDubinsPlanner::generateRoadmap, this));
     }
@@ -235,7 +235,7 @@ private:
                 auto obstacle = std::make_unique<CylinderObstacle>();
                 obstacle->centerX = point.x;
                 obstacle->centerY = point.y;
-                obstacle->radius = radius / 2.0;
+                obstacle->radius = radius;
                 obstacles.push_back(std::move(obstacle));
             }
         }
@@ -320,9 +320,18 @@ private:
                 circular_obstacles.push_back(obstacle);
             }
 
-            double final_orientation = M_PI / 2.0;
-            final_orientation *= std::signbit(gate.position.y) ? -1 : 1;
-            rrtstar::Node *goal = new rrtstar::Node(gate.position.x, gate.position.y, final_orientation);
+            auto position = gate.position;
+            auto orientation = gate.orientation;
+
+            // Get shelfino's yaw angle
+            double gate_t0 = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y);
+            double gate_t1 = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z);
+            double gate_yaw = std::atan2(gate_t0, gate_t1);
+            gate_yaw *= std::signbit(gate.position.y) ? -1 : 1;
+
+            std::cout << "Gate orientation: " << gate_yaw << std::endl;
+
+            rrtstar::Node *goal = new rrtstar::Node(position.x, position.y, gate_yaw);
 
             for (const auto &shelfino : shelfinos)
             {

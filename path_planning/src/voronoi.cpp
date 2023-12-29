@@ -158,7 +158,7 @@ class VoronoiPlanner : public rclcpp::Node
 {
 public:
     VoronoiPlanner()
-        : Node("vornoi_planner"), coordinateMapper(17, 17, 750, 750)
+        : Node("vornoi_planner"), coordinateMapper(20, 20, 750, 750)
     {
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 

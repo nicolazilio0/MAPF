@@ -52,7 +52,7 @@ namespace rrtstar
 
         RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<double>> obstacle_list,
                       double min_rand, double max_rand, int goal_sample_rate = 10, int max_iter = 500,
-                      double connect_circle_dist = 50.0, double robot_radius = 0.0);
+                      double connect_circle_dist = 50.0, double robot_radius = 0.353);
 
         Node *get_random_node();
         Node *get_nearest_node(Node *rnd_node);

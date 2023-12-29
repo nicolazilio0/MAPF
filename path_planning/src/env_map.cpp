@@ -78,7 +78,7 @@ class EnvironmentMap : public rclcpp::Node
 {
 public:
   EnvironmentMap()
-      : Node("env_map"), coordinateMapper(17, 17, 750, 750)
+      : Node("env_map"), coordinateMapper(20, 20, 750, 750)
   {
     const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
@@ -111,7 +111,7 @@ public:
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
     cv::namedWindow("Environment Map", cv::WINDOW_AUTOSIZE);
-    mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(0, 0, 0));
+    mapImage = cv::Mat(750, 750, CV_8UC3, cv::Scalar(255, 255, 255));
     mapImageCopy = mapImage.clone();
   }
 
@@ -274,7 +274,7 @@ private:
       {
         // Circle only contains one polygon
         const auto &point = polygon.points[0];
-        this->drawCircle(radius / 2.0, point, mapImage, true, cv::Scalar(0, 255, 0));
+        this->drawCircle(radius, point, mapImage, true, cv::Scalar(0, 255, 0));
       }
     }
 
@@ -290,16 +290,15 @@ private:
     const auto &pose = msg.poses[0];
     gate.position = pose.position;
     gate.orientation = pose.orientation;
+
+    this->drawRectangle(1.0, 1.0, gate.position, geometry_msgs::msg::Quaternion(), mapImage, true, cv::Scalar(0, 0, 255));
   }
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
   {
     RCLCPP_INFO(this->get_logger(), "Received map borders");
 
-    // Draw map borders
-    this->drawPolygon(msg, mapImage, true, cv::Scalar(255, 255, 255));
-
-    this->drawRectangle(1.0, 1.0, gate.position, gate.orientation, mapImage, true, cv::Scalar(0, 0, 255));
+    this->drawPolygon(msg, mapImage, false);
   }
 
   void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
