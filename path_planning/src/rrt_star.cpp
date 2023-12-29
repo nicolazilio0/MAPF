@@ -10,6 +10,8 @@
 #include <fstream>
 #include <chrono>
 
+#include <eigen3/Eigen/Geometry>
+
 #include "rclcpp/rclcpp.hpp"
 
 #include "nav_msgs/msg/odometry.hpp"
@@ -372,9 +374,17 @@ private:
                     const auto &point = *it;
 
                     geometry_msgs::msg::PoseStamped poseStamped;
+                    // Get x,y
                     poseStamped.pose.position.x = point[0];
                     poseStamped.pose.position.y = point[1];
-                    // TODO find if orientation is needed
+
+                    Eigen::Quaterniond quat;
+                    quat = Eigen::AngleAxisd(point[2], Eigen::Vector3d::UnitZ());
+                    // Get quaternion orientation from yaw
+                    poseStamped.pose.orientation.x = quat.x();
+                    poseStamped.pose.orientation.y = quat.y();
+                    poseStamped.pose.orientation.z = quat.z();
+                    poseStamped.pose.orientation.w = quat.w();
 
                     shelfino_path.poses.push_back(poseStamped);
                 }

@@ -75,6 +75,7 @@ target_link_libraries(rrt_star_planner
   CoordinateMapper
   DubinsPath
   RRTStarDubins
+  Eigen3::Eigen
 )
 
 install(TARGETS

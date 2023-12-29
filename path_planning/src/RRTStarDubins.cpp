@@ -286,7 +286,7 @@ Node *RRTStarDubins::search_best_goal_node()
 
 std::vector<std::vector<double>> RRTStarDubins::generate_final_course(Node *goal_node)
 {
-    std::vector<std::vector<double>> path{{end->x, end->y}};
+    std::vector<std::vector<double>> path{{end->x, end->y, end->yaw}};
     Node *node = goal_node;
 
     while (node->parent)
@@ -294,12 +294,12 @@ std::vector<std::vector<double>> RRTStarDubins::generate_final_course(Node *goal
         for (size_t i = node->path_x.size(); i > 0; --i)
         {
             // std::cout << node->path_x[i - 1] << " , " << node->path_y[i - 1] << std::endl;
-            path.push_back({node->path_x[i - 1], node->path_y[i - 1]});
+            path.push_back({node->path_x[i - 1], node->path_y[i - 1], node->path_yaw[i - 1]});
         }
         node = node->parent;
     }
 
-    path.push_back({start->x, start->y});
+    path.push_back({start->x, start->y, start->yaw});
     return path;
 }
 

@@ -8,14 +8,16 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+
 find_package(ament_cmake_python REQUIRED)
 find_package(rclpy REQUIRED)
-find_package(rclcpp_lifecycle REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(obstacles_msgs REQUIRED)
 find_package(gazebo_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 
 install(DIRECTORY launch models config
   DESTINATION share/${PROJECT_NAME}
@@ -44,10 +46,11 @@ ament_target_dependencies(
   ${PROJECT_NAME}_lib
   "geometry_msgs"
   "rclcpp"
-  "rclcpp_lifecycle"
   "gazebo_msgs"
   "obstacles_msgs"
   "tf2"
+  "lifecycle_msgs"
+  "rclcpp_lifecycle"
 )
 
 # build nodes
@@ -66,10 +69,11 @@ foreach(NODE ${NODES})
     ${NODE}
     "geometry_msgs"
     "rclcpp"
-    "rclcpp_lifecycle"
     "gazebo_msgs"
     "obstacles_msgs"
     "tf2"
+    "lifecycle_msgs"
+    "rclcpp_lifecycle"
   )
 
   install(TARGETS ${NODE}
@@ -98,7 +102,6 @@ if(BUILD_TESTING)
   ament_target_dependencies(${PROJECT_NAME}_tests
     "geometry_msgs"
     "rclcpp"
-    "rclcpp_lifecycle"
     "std_msgs"
     "gazebo_msgs"
     "obstacles_msgs"
