@@ -161,9 +161,9 @@ public:
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 1);
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 2);
 
-        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10);
-        shelfino1PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino1/rrtstar_path", 10);
-        shelfino2PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino2/rrtstar_path", 10);
+        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
+        shelfino1PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino1/plan1", 10);
+        shelfino2PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino2/plan1", 10);
 
         shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
         shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
@@ -329,7 +329,7 @@ private:
             double gate_t0 = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y);
             double gate_t1 = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z);
             double gate_yaw = std::atan2(gate_t0, gate_t1);
-            gate_yaw *= std::signbit(gate.position.y) ? -1 : 1;
+            // gate_yaw *= std::signbit(gate.position.y) ? -1 : 1;
 
             std::cout << "Gate orientation: " << gate_yaw << std::endl;
 
@@ -355,6 +355,7 @@ private:
                 std::vector<std::vector<double>> path;
 
                 auto start_time = std::chrono::high_resolution_clock::now();
+                RCLCPP_INFO(this->get_logger(), "Shelfino %i", id);
 
                 // Repeat the planning until a non-empty path is obtained
                 do
@@ -369,6 +370,7 @@ private:
 
                 // Iterate in reverse the path
                 nav_msgs::msg::Path shelfino_path;
+                shelfino_path.header.frame_id = "map";
                 for (auto it = path.rbegin(); it != path.rend(); ++it)
                 {
                     const auto &point = *it;

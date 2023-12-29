@@ -16,8 +16,8 @@ CoordinateMapper::CoordinateMapper(
 
 void CoordinateMapper::gazebo2img(double realX, double realY, int &imageX, int &imageY) const
 {
-    imageX = std::round(-realY * scaleX_ + offsetX_);
-    imageY = std::round(-realX * scaleY_ + offsetY_);
+    imageX = std::round(realY * scaleX_ + offsetX_);
+    imageY = std::round(realX * scaleY_ + offsetY_);
 }
 
 // For symmetric world
@@ -28,6 +28,6 @@ void CoordinateMapper::gazebo2img(double real, int &imageMeasure) const
 
 void CoordinateMapper::img2gazebo(int imageX, int imageY, double &realX, double &realY) const
 {
-    realX = -(imageY - offsetY_) / scaleY_;
-    realY = -(imageX - offsetX_) / scaleX_;
+    realX = (imageY - offsetY_) / scaleY_;
+    realY = (imageX - offsetX_) / scaleX_;
 }

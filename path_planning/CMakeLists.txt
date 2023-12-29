@@ -15,7 +15,9 @@ find_package(cv_bridge REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(obstacles_msgs REQUIRED)
 find_package(Boost REQUIRED)
@@ -38,6 +40,11 @@ add_library(RRTStarDubins
   src/RRTStarDubins.cpp
 )
 
+
+
+
+
+
 target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
 target_link_libraries(DubinsPath Eigen3::Eigen)
 
@@ -52,6 +59,22 @@ target_link_libraries(env_map
   Eigen3::Eigen
   ${OpenCV_LIBRARIES}
 )
+
+
+
+add_executable(victims_env_map src/victims_env_map.cpp)
+ament_target_dependencies(victims_env_map sensor_msgs cv_bridge image_transport geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+target_include_directories(victims_env_map PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(victims_env_map
+  CoordinateMapper
+  Eigen3::Eigen
+  ${OpenCV_LIBRARIES}
+)
+
+
+
 
 # Voronoi
 add_executable(voronoi_planner src/voronoi.cpp)
@@ -78,13 +101,57 @@ target_link_libraries(rrt_star_planner
   Eigen3::Eigen
 )
 
+
+add_executable(victims_planner src/victims.cpp)
+ament_target_dependencies(victims_planner geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+
+target_include_directories(victims_planner PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(victims_planner
+  CoordinateMapper
+  DubinsPath
+  RRTStarDubins
+  Eigen3::Eigen
+)
+
+
+
+
+
+
+# Orchestrator
+add_executable(orchestrator src/orchestrator.cpp)
+ament_target_dependencies(orchestrator geometry_msgs nav_msgs  nav2_msgs rclcpp rclcpp_action std_msgs)
+
+target_include_directories(orchestrator PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+add_executable(orchestrator_victims src/orchestrator_victims.cpp)
+ament_target_dependencies(orchestrator_victims geometry_msgs nav_msgs  nav2_msgs rclcpp rclcpp_action std_msgs)
+
+target_include_directories(orchestrator_victims PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+
+
+target_link_libraries(rrt_star_planner
+  CoordinateMapper
+)
+
 install(TARGETS
   CoordinateMapper
   DubinsPath
   RRTStarDubins
   env_map
+  victims_env_map
   voronoi_planner
+  victims_planner
   rrt_star_planner
+  orchestrator_victims
+  orchestrator
   DESTINATION lib/${PROJECT_NAME}
 )
 

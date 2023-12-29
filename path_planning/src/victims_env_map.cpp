@@ -71,6 +71,16 @@ struct Gate
   geometry_msgs::msg::Quaternion orientation;
 };
 
+struct Victim 
+{
+    double centerX;
+    double centerY;
+    double radius=0.5;
+    double value;
+
+
+};
+
 /* This example creates a subclass of Node and uses std::bind() to register a
  * member function as a callback from the timer. */
 
@@ -85,12 +95,17 @@ public:
     obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&EnvironmentMap::getObstacles, this, _1));
     gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::getGates, this, _1));
     mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&EnvironmentMap::getMap, this, _1));
+    victimSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("victims", qos, std::bind(&EnvironmentMap::getVictims, this, _1));
+
+
+
 
     mapPublisher_ = this->create_publisher<sensor_msgs::msg::Image>("map_image", 10);
 
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 0);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 1);
     std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&EnvironmentMap::getShelfinoPosition, this, _1, 2);
+
 
     shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
     shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
@@ -120,6 +135,9 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gatesSubscritpion_;
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr mapPublisher_;
+  rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr victimSubscritpion_;
+
+
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0Subscritpion_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1Subscritpion_;
@@ -136,6 +154,8 @@ private:
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
   std::vector<Shelfino> shelfinos;
+  std::vector<std::unique_ptr<Victim>> victims;
+
   Gate gate;
 
   CoordinateMapper coordinateMapper;
@@ -293,6 +313,40 @@ private:
 
     this->drawRectangle(1.0, 1.0, gate.position, geometry_msgs::msg::Quaternion(), mapImage, true, cv::Scalar(0, 0, 255));
   }
+
+
+    void getVictims(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
+    {
+        RCLCPP_INFO(this->get_logger(), "Received %zu victims", msg.obstacles.size());
+        for (size_t i = 0; i < msg.obstacles.size(); i++)
+        {
+            const auto &msgVictims = msg.obstacles[i];
+
+            // Access the polygon and radius fields for each obstacle
+            const auto &polygon = msgVictims.polygon;
+            const auto &value = msgVictims.radius;
+        
+            // Circle only contains one polygon
+            const auto &point = polygon.points[0];
+            auto victim = std::make_unique<Victim>();
+            victim->centerX = point.x;
+            victim->centerY = point.y;
+            victim->value = value;
+            victims.push_back(std::move(victim));
+            double radius = 0.5;
+            this->drawCircle(radius, point, mapImage, true, cv::Scalar(255, 0, 0));
+
+            
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Received victims");
+
+
+    }
+
+
+
+
 
   void getMap(const geometry_msgs::msg::Polygon &msg)
   {

@@ -13,9 +13,9 @@ RRTStarDubins::RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<do
       max_iter(max_iter),
       obstacle_list(obstacle_list),
       connect_circle_dist(connect_circle_dist),
-      curvature(0.75),
+      curvature(2),
       goal_yaw_th(0.0174532),
-      goal_xy_th(0.5),
+      goal_xy_th(0.05),
       robot_radius(robot_radius),
       dubbins_planner()
 {
@@ -65,7 +65,7 @@ Node *RRTStarDubins::get_nearest_node(Node *rnd_node)
 
 Node *RRTStarDubins::steer(Node *from_node, Node *to_node)
 {
-    auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.plan_dubins_path(
+    auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.planDubinsPath(
         from_node->x, from_node->y, from_node->yaw,
         to_node->x, to_node->y, to_node->yaw, curvature);
 
@@ -138,7 +138,7 @@ std::vector<Node *> RRTStarDubins::find_near_nodes(Node *new_node)
 
 double RRTStarDubins::calc_new_cost(Node *from_node, Node *to_node)
 {
-    auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.plan_dubins_path(
+    auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.planDubinsPath(
         from_node->x, from_node->y, from_node->yaw,
         to_node->x, to_node->y, to_node->yaw, curvature);
 
