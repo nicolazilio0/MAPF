@@ -46,13 +46,6 @@ def generate_launch_description():
 
     # List of nodes to launch
     nodes = [
-        # Node (
-        #     package='map_pkg',
-        #     executable='send_initialposes',
-        #     name='send_initialposes',
-        #     output='screen',
-        #     parameters=[map_env_params_file]
-        # ),
         Node (
             package='map_pkg',
             executable='send_gates',
