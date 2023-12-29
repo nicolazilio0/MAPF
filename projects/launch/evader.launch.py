@@ -145,7 +145,6 @@ def generate_launch_description():
         convert_types=True
     )
 
-
     # List of nodes to launch
     nodes = [
         IncludeLaunchDescription(
@@ -186,13 +185,13 @@ def generate_launch_description():
                 'rviz_config_file': nav2_rviz_config_file,
             }.items()
         ),
-        Node (
-            package='evader',
-            executable='evader',
-            name='evader_node',
-            namespace=shelfino_name,
-            output='screen'
-        ),
+        #Node (
+        #    package='evader',
+        #    executable='evader',
+        #    name='evader_node',
+        #    namespace=shelfino_name,
+        #    output='screen'
+        #),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 os.path.join(map_env_pkg, 'launch'),
@@ -214,7 +213,6 @@ def generate_launch_description():
     ld.add_action(OpaqueFunction(function=get_map_name))
     ld.add_action(OpaqueFunction(function=print_env))
     
-    ld.add_action(mpdp_node)
     for node in nodes:
         ld.add_action(node)
 

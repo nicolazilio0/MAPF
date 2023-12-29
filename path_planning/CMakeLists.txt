@@ -28,6 +28,19 @@ add_library(CoordinateMapper
   src/CoordinateMapper.cpp
 )
 
+# DubinsPath
+add_library(DubinsPath
+  src/DubinsPath.cpp
+)
+
+#
+add_library(RRTStarDubins
+  src/RRTStarDubins.cpp
+)
+
+target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
+target_link_libraries(DubinsPath Eigen3::Eigen)
+
 # Map 
 add_executable(env_map src/env_map.cpp)
 ament_target_dependencies(env_map sensor_msgs cv_bridge image_transport geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
@@ -51,11 +64,27 @@ target_link_libraries(voronoi_planner
   Boost::headers
 )
 
+# RRT*
+add_executable(rrt_star_planner src/rrt_star.cpp)
+ament_target_dependencies(rrt_star_planner geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+
+target_include_directories(rrt_star_planner PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(rrt_star_planner
+  CoordinateMapper
+  DubinsPath
+  RRTStarDubins
+  Eigen3::Eigen
+)
 
 install(TARGETS
+  CoordinateMapper
+  DubinsPath
+  RRTStarDubins
   env_map
   voronoi_planner
-  CoordinateMapper
+  rrt_star_planner
   DESTINATION lib/${PROJECT_NAME}
 )
 
