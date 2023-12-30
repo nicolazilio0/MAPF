@@ -15,7 +15,9 @@ find_package(cv_bridge REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(obstacles_msgs REQUIRED)
 find_package(Boost REQUIRED)
@@ -78,6 +80,17 @@ target_link_libraries(rrt_star_planner
   Eigen3::Eigen
 )
 
+# Orchestrator
+add_executable(orchestrator src/orchestrator.cpp)
+ament_target_dependencies(orchestrator geometry_msgs nav_msgs  nav2_msgs rclcpp rclcpp_action std_msgs)
+
+target_include_directories(orchestrator PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(rrt_star_planner
+  CoordinateMapper
+)
+
 install(TARGETS
   CoordinateMapper
   DubinsPath
@@ -85,6 +98,7 @@ install(TARGETS
   env_map
   voronoi_planner
   rrt_star_planner
+  orchestrator
   DESTINATION lib/${PROJECT_NAME}
 )
 
