@@ -99,14 +99,14 @@ public:
     // --- Voronoi visualizer ---
     voronoiSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("voronoi", 10, std::bind(&EnvironmentMap::getVoronoi, this, _1));
 
-    // --- RRT*Dubins visualizer ---
-    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 0);
-    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 1);
-    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2RRTStar = std::bind(&EnvironmentMap::getRRTStar, this, _1, 2);
+    // --- Path visualizer ---
+    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0Path = std::bind(&EnvironmentMap::getPath, this, _1, 0);
+    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1Path = std::bind(&EnvironmentMap::getPath, this, _1, 1);
+    std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2Path = std::bind(&EnvironmentMap::getPath, this, _1, 2);
 
-    shelfino0RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10, shelfino0RRTStar);
-    shelfino1RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino1/rrtstar_path", 10, shelfino1RRTStar);
-    shelfino2RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino2/rrtstar_path", 10, shelfino2RRTStar);
+    shelfino0PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, shelfino0Path);
+    shelfino1PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino1/plan1", 10, shelfino1Path);
+    shelfino2PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino2/plan1", 10, shelfino2Path);
 
     mapUpdateTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&EnvironmentMap::updateMap, this));
 
@@ -128,10 +128,10 @@ private:
   // --- Voronoi visualizer ---
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr voronoiSubscritpion_;
 
-  // --- RRT*Dubins visualizer ---
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0RRTStarSubscritpion_;
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1RRTStarSubscritpion_;
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2RRTStarSubscritpion_;
+  // --- Path visualizer ---
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0PathSubscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1PathSubscritpion_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2PathSubscritpion_;
 
   cv::Mat mapImage; // Declare mapImage as a class member
   cv::Mat mapImageCopy;
@@ -330,9 +330,9 @@ private:
     this->drawVoronoi(msg, mapImage);
   }
 
-  void getRRTStar(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
+  void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
   {
-    RCLCPP_INFO(this->get_logger(), "Received RRTStar map");
+    RCLCPP_INFO(this->get_logger(), "Received Path for Shelfino %i", robotId);
 
     int colorIdentifier = 50 + (50 * robotId);
 

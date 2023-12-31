@@ -24,40 +24,67 @@ public:
 
     Orchestrator() : Node("path_follower_node")
     {
-        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0RRTStar = std::bind(&Orchestrator::getPath, this, _1, 0);
-        shelfino0RRTStarSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10, shelfino0RRTStar);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0Path = std::bind(&Orchestrator::getPath, this, _1, 0);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1Path = std::bind(&Orchestrator::getPath, this, _1, 1);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2Path = std::bind(&Orchestrator::getPath, this, _1, 2);
 
-        action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
+        shelfino0PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, shelfino0Path);
+        shelfino1PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino1/plan1", 10, shelfino1Path);
+        shelfino2PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino2/plan1", 10, shelfino2Path);
+
+        shelfino0_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
+        shelfino1_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino1/follow_path");
+        shelfino2_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino2/follow_path");
 
         // Wait for the action server to become available
-        if (!action_client_->wait_for_action_server())
+        if (!shelfino0_action_client_->wait_for_action_server())
         {
-            RCLCPP_ERROR(this->get_logger(), "Action server not available");
+            RCLCPP_ERROR(this->get_logger(), "Action server shelfino1 not available");
+            rclcpp::shutdown();
+        }
+        if (!shelfino1_action_client_->wait_for_action_server())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Action server shelfino2 not available");
+            rclcpp::shutdown();
+        }
+        if (!shelfino2_action_client_->wait_for_action_server())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Action server shelfino3 not available");
             rclcpp::shutdown();
         }
         RCLCPP_INFO(this->get_logger(), "Action server OK");
-
-        path_publisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
     }
 
 private:
-    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
-    rclcpp_action::Client<FollowPath>::SharedPtr action_client_;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino0_action_client_;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino1_action_client_;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino2_action_client_;
 
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0RRTStarSubscritpion_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0PathSubscritpion_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1PathSubscritpion_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2PathSubscritpion_;
 
     void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
     {
         RCLCPP_INFO(this->get_logger(), "Received path map for %i", robotId);
 
-        path_publisher_->publish(*msg);
-        RCLCPP_INFO(this->get_logger(), "Sended path");
-
         // Create a FollowPath action goal
         auto goal_msg = FollowPath::Goal();
         goal_msg.path = *msg;
         goal_msg.controller_id = "FollowPath";
-        action_client_->async_send_goal(goal_msg);
+
+        switch (robotId)
+        {
+        case 0:
+            shelfino0_action_client_->async_send_goal(goal_msg);
+            break;
+        case 1:
+            shelfino1_action_client_->async_send_goal(goal_msg);
+            break;
+        case 2:
+            shelfino2_action_client_->async_send_goal(goal_msg);
+            break;
+        }
         RCLCPP_INFO(this->get_logger(), "Sended action");
     }
 };

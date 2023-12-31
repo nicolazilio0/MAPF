@@ -161,9 +161,9 @@ public:
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 1);
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 2);
 
-        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/rrtstar_path", 10);
-        shelfino1PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino1/rrtstar_path", 10);
-        shelfino2PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino2/rrtstar_path", 10);
+        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
+        shelfino1PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino1/plan1", 10);
+        shelfino2PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino2/plan1", 10);
 
         shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
         shelfino1Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1Odom);
