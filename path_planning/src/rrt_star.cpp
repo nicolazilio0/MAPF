@@ -329,7 +329,7 @@ private:
             double gate_t0 = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y);
             double gate_t1 = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z);
             double gate_yaw = std::atan2(gate_t0, gate_t1);
-            gate_yaw *= std::signbit(gate.position.y) ? -1 : 1;
+            // gate_yaw *= std::signbit(gate.position.y) ? -1 : 1;
 
             std::cout << "Gate orientation: " << gate_yaw << std::endl;
 

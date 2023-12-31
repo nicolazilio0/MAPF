@@ -53,7 +53,7 @@ def generate_launch_description():
 
     # Gazebo simulation arguments
     use_gui           = LaunchConfiguration('use_gui', default='true')
-    use_rviz          = LaunchConfiguration('use_rviz', default='false')
+    use_rviz          = LaunchConfiguration('use_rviz', default='true')
     rviz_config_file  = LaunchConfiguration('rviz_config_file', default=os.path.join(shelfino_desc_pkg, 'rviz', 'shelfino.rviz'))
     gazebo_world_file = LaunchConfiguration('gazebo_world_file', default=os.path.join(shelfino_gaze_pkg, 'worlds', 'hexagon.world'))
     robot_model_file  = LaunchConfiguration('robot_model_file', default=os.path.join(shelfino_desc_pkg, 'models', 'shelfino', 'model.sdf.xacro'))
