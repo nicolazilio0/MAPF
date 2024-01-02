@@ -53,6 +53,12 @@ public:
             rclcpp::shutdown();
         }
         RCLCPP_INFO(this->get_logger(), "Action server OK");
+
+        shelfino0_path_recived = false;
+        shelfino1_path_recived = false;
+        shelfino2_path_recived = false;
+
+        orchestratorTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Orchestrator::sendPlan, this));
     }
 
 private:
@@ -64,28 +70,66 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1PathSubscritpion_;
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2PathSubscritpion_;
 
+    bool shelfino0_path_recived;
+    nav_msgs::msg::Path shelfino0_path;
+
+    bool shelfino1_path_recived;
+    nav_msgs::msg::Path shelfino1_path;
+
+    bool shelfino2_path_recived;
+    nav_msgs::msg::Path shelfino2_path;
+
+    rclcpp::TimerBase::SharedPtr orchestratorTimer_;
+
     void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
     {
         RCLCPP_INFO(this->get_logger(), "Received path map for %i", robotId);
 
-        // Create a FollowPath action goal
-        auto goal_msg = FollowPath::Goal();
-        goal_msg.path = *msg;
-        goal_msg.controller_id = "FollowPath";
-
         switch (robotId)
         {
         case 0:
-            shelfino0_action_client_->async_send_goal(goal_msg);
+            shelfino0_path_recived = true;
+            shelfino0_path = *msg;
             break;
         case 1:
-            shelfino1_action_client_->async_send_goal(goal_msg);
+            shelfino1_path_recived = true;
+            shelfino1_path = *msg;
             break;
         case 2:
-            shelfino2_action_client_->async_send_goal(goal_msg);
+            shelfino2_path_recived = true;
+            shelfino2_path = *msg;
             break;
         }
-        RCLCPP_INFO(this->get_logger(), "Sended action");
+    }
+
+    void sendPlan()
+    {
+
+        if (shelfino0_path_recived && shelfino1_path_recived && shelfino2_path_recived)
+        {
+            RCLCPP_INFO(this->get_logger(), "Checking and sending paths");
+            orchestratorTimer_->cancel();
+
+            // TODO: check and fix possible conficts
+
+            auto goal0_msg = FollowPath::Goal();
+            goal0_msg.path = shelfino0_path;
+            goal0_msg.controller_id = "FollowPath";
+
+            shelfino0_action_client_->async_send_goal(goal0_msg);
+
+            auto goal1_msg = FollowPath::Goal();
+            goal1_msg.path = shelfino1_path;
+            goal1_msg.controller_id = "FollowPath";
+
+            shelfino1_action_client_->async_send_goal(goal1_msg);
+
+            auto goal2_msg = FollowPath::Goal();
+            goal2_msg.path = shelfino2_path;
+            goal2_msg.controller_id = "FollowPath";
+
+            shelfino2_action_client_->async_send_goal(goal2_msg);
+        }
     }
 };
 
