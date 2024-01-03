@@ -51,7 +51,7 @@ namespace rrtstar
         std::mt19937 generator{rd()};
 
         RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<double>> obstacle_list,
-                      double min_rand, double max_rand, int goal_sample_rate = 10, int max_iter = 500,
+                      double min_rand, double max_rand, int goal_sample_rate = 10, int max_iter = 200,
                       double connect_circle_dist = 50.0, double robot_radius = 0.353);
 
         Node *get_random_node();

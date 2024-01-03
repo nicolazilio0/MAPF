@@ -13,9 +13,9 @@ RRTStarDubins::RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<do
       max_iter(max_iter),
       obstacle_list(obstacle_list),
       connect_circle_dist(connect_circle_dist),
-      curvature(0.75),
+      curvature(2),
       goal_yaw_th(0.0174532),
-      goal_xy_th(0.5),
+      goal_xy_th(0.05),
       robot_radius(robot_radius),
       dubbins_planner()
 {

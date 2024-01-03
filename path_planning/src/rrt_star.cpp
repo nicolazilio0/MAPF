@@ -355,6 +355,7 @@ private:
                 std::vector<std::vector<double>> path;
 
                 auto start_time = std::chrono::high_resolution_clock::now();
+                RCLCPP_INFO(this->get_logger(), "Shelfino %i", id);
 
                 // Repeat the planning until a non-empty path is obtained
                 do
