@@ -83,6 +83,9 @@ private:
     nav_msgs::msg::Path shelfino2_path;
 
     rclcpp::TimerBase::SharedPtr orchestratorTimer_;
+    rclcpp::TimerBase::SharedPtr path0_delay_timer_;
+    rclcpp::TimerBase::SharedPtr path1_delay_timer_;
+    rclcpp::TimerBase::SharedPtr path2_delay_timer_;
 
     void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
     {
@@ -105,7 +108,12 @@ private:
         }
     }
 
-    void checkCollisions(nav_msgs::msg::Path &path0, nav_msgs::msg::Path &path1, nav_msgs::msg::Path &path2, double safety_dis = 0.5)
+    double getDelay(int delay_steps, double step_discr = 0.1, double const_velocity = 0.2)
+    {
+        return static_cast<double>(delay_steps) * step_discr / const_velocity;
+    }
+
+    void checkCollisions(nav_msgs::msg::Path &path0, nav_msgs::msg::Path &path1, nav_msgs::msg::Path &path2, double &path0_delay, double &path1_delay, double &path2_delay, double safety_dis = 0.5)
     {
         int max_timestep = std::max({static_cast<int>(path0.poses.size()),
                                      static_cast<int>(path1.poses.size()),
@@ -113,7 +121,6 @@ private:
                            2;
 
         int collision_delay = 2;
-        int path0_delay = 100, path1_delay = 0, path2_delay = 0;
 
         bool check_collision = true;
 
@@ -210,13 +217,14 @@ private:
             {
                 check_collision = false;
                 std::cout << "NO collisions" << std::endl;
-                std::cout << path0_delay << " , " << path1_delay << " , " << path2_delay << std::endl;
                 // once the collisions are fixed
                 // add to the front of the path the initial pose for the delay timestep calculated
 
-                path0 = path0_eq;
-                path1 = path1_eq;
-                path2 = path2_eq;
+                path0_delay = getDelay(path0_delay);
+                path1_delay = getDelay(path1_delay);
+                path2_delay = getDelay(path2_delay);
+
+                std::cout << path0_delay << "s , " << path1_delay << "s , " << path2_delay << "s" << std::endl;
             }
         }
     }
@@ -229,32 +237,41 @@ private:
             RCLCPP_INFO(this->get_logger(), "Checking and sending paths");
             orchestratorTimer_->cancel();
 
-            RCLCPP_INFO(this->get_logger(), "%i", static_cast<int>(shelfino0_path.poses.size()));
+            double path0_delay = 0, path1_delay = 0, path2_delay = 0;
 
-            checkCollisions(shelfino0_path, shelfino1_path, shelfino2_path);
+            checkCollisions(shelfino0_path, shelfino1_path, shelfino2_path, path0_delay, path1_delay, path2_delay);
 
-            RCLCPP_INFO(this->get_logger(), "%i", static_cast<int>(shelfino0_path.poses.size()));
+            path0_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path0_delay * 1000)), [this]()
+                                                         { sendGoal(0); });
+            path1_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path1_delay * 1000)), [this]()
+                                                         { sendGoal(1); });
+            path2_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path2_delay * 1000)), [this]()
+                                                         { sendGoal(2); });
+        }
+    }
 
-            for (int i = 0; i < 10; ++i)
-            {
-                const auto &pose = shelfino0_path.poses[i];
-                std::cout << "Pose " << i + 1 << ":\n";
-                std::cout << "  Position (x, y, z): " << pose.pose.position.x << ", " << pose.pose.position.y << ", " << pose.pose.position.z << "\n";
-                std::cout << "  Orientation (x, y, z, w): " << pose.pose.orientation.x << ", " << pose.pose.orientation.y << ", "
-                          << pose.pose.orientation.z << ", " << pose.pose.orientation.w << "\n";
-            }
+    void sendGoal(int robot_id)
+    {
+        FollowPath::Goal goal_msg;
+        goal_msg.controller_id = "FollowPath";
 
-            auto goal_msg = FollowPath::Goal();
-            goal_msg.controller_id = "FollowPath";
-
+        switch (robot_id)
+        {
+        case 0:
+            path0_delay_timer_->cancel();
             goal_msg.path = shelfino0_path;
             shelfino0_action_client_->async_send_goal(goal_msg);
-
+            break;
+        case 1:
+            path1_delay_timer_->cancel();
             goal_msg.path = shelfino1_path;
             shelfino1_action_client_->async_send_goal(goal_msg);
-
+            break;
+        case 2:
+            path2_delay_timer_->cancel();
             goal_msg.path = shelfino2_path;
             shelfino2_action_client_->async_send_goal(goal_msg);
+            break;
         }
     }
 };

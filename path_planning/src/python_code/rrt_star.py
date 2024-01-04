@@ -235,13 +235,12 @@ class RRTStarDubins:
         return new_node
 
     def generate_final_course(self, goal_index):
-        path = [[self.end.x, self.end.y]]
+        path = []
         node = self.node_list[goal_index]
         while node.parent:
             for (ix, iy) in zip(reversed(node.path_x), reversed(node.path_y)):
                 path.append([ix, iy])
             node = node.parent
-        path.append([self.start.x, self.start.y])
         return path
 
     def calc_dist_to_goal(self, x, y):
