@@ -25,11 +25,6 @@ find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
-# CoordinateMapper
-add_library(CoordinateMapper
-  src/CoordinateMapper.cpp
-)
-
 # DubinsPath
 add_library(DubinsPath
   src/DubinsPath.cpp
@@ -50,7 +45,6 @@ target_include_directories(env_map PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(env_map
-  CoordinateMapper
   Eigen3::Eigen
   ${OpenCV_LIBRARIES}
 )
@@ -62,7 +56,6 @@ target_include_directories(voronoi_planner PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(voronoi_planner
-  CoordinateMapper
   Boost::headers
 )
 
@@ -74,7 +67,6 @@ target_include_directories(rrt_star_planner PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(rrt_star_planner
-  CoordinateMapper
   DubinsPath
   RRTStarDubins
   Eigen3::Eigen
@@ -87,12 +79,8 @@ ament_target_dependencies(orchestrator geometry_msgs nav_msgs  nav2_msgs rclcpp 
 target_include_directories(orchestrator PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(rrt_star_planner
-  CoordinateMapper
-)
 
 install(TARGETS
-  CoordinateMapper
   DubinsPath
   RRTStarDubins
   env_map

@@ -27,30 +27,30 @@ public:
 
     Orchestrator() : Node("path_follower_node")
     {
-        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0Path = std::bind(&Orchestrator::getPath, this, _1, 0);
-        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1Path = std::bind(&Orchestrator::getPath, this, _1, 1);
-        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2Path = std::bind(&Orchestrator::getPath, this, _1, 2);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0_path = std::bind(&Orchestrator::get_path, this, _1, 0);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino1_path = std::bind(&Orchestrator::get_path, this, _1, 1);
+        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino2_path = std::bind(&Orchestrator::get_path, this, _1, 2);
 
-        shelfino0PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, shelfino0Path);
-        shelfino1PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino1/plan1", 10, shelfino1Path);
-        shelfino2PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino2/plan1", 10, shelfino2Path);
+        shelfino0_path_subscritpion = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, shelfino0_path);
+        shelfino1_path_subscritpion = this->create_subscription<nav_msgs::msg::Path>("shelfino1/plan1", 10, shelfino1_path);
+        shelfino2_path_subscritpion = this->create_subscription<nav_msgs::msg::Path>("shelfino2/plan1", 10, shelfino2_path);
 
-        shelfino0_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
-        shelfino1_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino1/follow_path");
-        shelfino2_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino2/follow_path");
+        shelfino0_action_client = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
+        shelfino1_action_client = rclcpp_action::create_client<FollowPath>(this, "shelfino1/follow_path");
+        shelfino2_action_client = rclcpp_action::create_client<FollowPath>(this, "shelfino2/follow_path");
 
         // Wait for the action server to become available
-        if (!shelfino0_action_client_->wait_for_action_server())
+        if (!shelfino0_action_client->wait_for_action_server())
         {
             RCLCPP_ERROR(this->get_logger(), "Action server shelfino1 not available");
             rclcpp::shutdown();
         }
-        if (!shelfino1_action_client_->wait_for_action_server())
+        if (!shelfino1_action_client->wait_for_action_server())
         {
             RCLCPP_ERROR(this->get_logger(), "Action server shelfino2 not available");
             rclcpp::shutdown();
         }
-        if (!shelfino2_action_client_->wait_for_action_server())
+        if (!shelfino2_action_client->wait_for_action_server())
         {
             RCLCPP_ERROR(this->get_logger(), "Action server shelfino3 not available");
             rclcpp::shutdown();
@@ -61,18 +61,18 @@ public:
         shelfino1_path_recived = false;
         shelfino2_path_recived = false;
 
-        orchestratorTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Orchestrator::sendPlan, this));
+        orchestrator_timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Orchestrator::send_plan, this));
     }
 
 private:
-    rclcpp_action::Client<FollowPath>::SharedPtr shelfino0_action_client_;
-    rclcpp_action::Client<FollowPath>::SharedPtr shelfino1_action_client_;
-    rclcpp_action::Client<FollowPath>::SharedPtr shelfino2_action_client_;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino0_action_client;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino1_action_client;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino2_action_client;
 
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0PathSubscritpion_;
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1PathSubscritpion_;
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2PathSubscritpion_;
-    bool shelfinos_path_recived[3];
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0_path_subscritpion;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino1_path_subscritpion;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino2_path_subscritpion;
+
     bool shelfino0_path_recived;
     nav_msgs::msg::Path shelfino0_path;
 
@@ -82,12 +82,12 @@ private:
     bool shelfino2_path_recived;
     nav_msgs::msg::Path shelfino2_path;
 
-    rclcpp::TimerBase::SharedPtr orchestratorTimer_;
-    rclcpp::TimerBase::SharedPtr path0_delay_timer_;
-    rclcpp::TimerBase::SharedPtr path1_delay_timer_;
-    rclcpp::TimerBase::SharedPtr path2_delay_timer_;
+    rclcpp::TimerBase::SharedPtr orchestrator_timer;
+    rclcpp::TimerBase::SharedPtr path0_delay_timer;
+    rclcpp::TimerBase::SharedPtr path1_delay_timer;
+    rclcpp::TimerBase::SharedPtr path2_delay_timer;
 
-    void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
+    void get_path(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
     {
         RCLCPP_INFO(this->get_logger(), "Received path map for %i", robotId);
 
@@ -229,28 +229,28 @@ private:
         }
     }
 
-    void sendPlan()
+    void send_plan()
     {
 
         if (shelfino0_path_recived && shelfino1_path_recived && shelfino2_path_recived)
         {
             RCLCPP_INFO(this->get_logger(), "Checking and sending paths");
-            orchestratorTimer_->cancel();
+            orchestrator_timer->cancel();
 
             double path0_delay = 0, path1_delay = 0, path2_delay = 0;
 
             checkCollisions(shelfino0_path, shelfino1_path, shelfino2_path, path0_delay, path1_delay, path2_delay);
 
-            path0_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path0_delay * 1000)), [this]()
-                                                         { sendGoal(0); });
-            path1_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path1_delay * 1000)), [this]()
-                                                         { sendGoal(1); });
-            path2_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path2_delay * 1000)), [this]()
-                                                         { sendGoal(2); });
+            path0_delay_timer = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path0_delay * 1000)), [this]()
+                                                        { send_goal(0); });
+            path1_delay_timer = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path1_delay * 1000)), [this]()
+                                                        { send_goal(1); });
+            path2_delay_timer = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path2_delay * 1000)), [this]()
+                                                        { send_goal(2); });
         }
     }
 
-    void sendGoal(int robot_id)
+    void send_goal(int robot_id)
     {
         FollowPath::Goal goal_msg;
         goal_msg.controller_id = "FollowPath";
@@ -258,19 +258,19 @@ private:
         switch (robot_id)
         {
         case 0:
-            path0_delay_timer_->cancel();
+            path0_delay_timer->cancel();
             goal_msg.path = shelfino0_path;
-            shelfino0_action_client_->async_send_goal(goal_msg);
+            shelfino0_action_client->async_send_goal(goal_msg);
             break;
         case 1:
-            path1_delay_timer_->cancel();
+            path1_delay_timer->cancel();
             goal_msg.path = shelfino1_path;
-            shelfino1_action_client_->async_send_goal(goal_msg);
+            shelfino1_action_client->async_send_goal(goal_msg);
             break;
         case 2:
-            path2_delay_timer_->cancel();
+            path2_delay_timer->cancel();
             goal_msg.path = shelfino2_path;
-            shelfino2_action_client_->async_send_goal(goal_msg);
+            shelfino2_action_client->async_send_goal(goal_msg);
             break;
         }
     }

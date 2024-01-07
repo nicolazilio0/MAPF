@@ -28,7 +28,7 @@
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
-#include "CoordinateMapper.hpp"
+#include "../include/CoordinateMapper.hpp"
 
 #include <boost/polygon/voronoi.hpp>
 
@@ -50,14 +50,14 @@ static const rmw_qos_profile_t rmw_qos_profile_custom =
 
 struct Obstacle
 {
-    virtual geometry_msgs::msg::Polygon getPolygon() const = 0;
+    virtual geometry_msgs::msg::Polygon get_polygon() const = 0;
 };
 
 struct PolygonObstacle : Obstacle
 {
     geometry_msgs::msg::Polygon polygon;
 
-    geometry_msgs::msg::Polygon getPolygon() const override
+    geometry_msgs::msg::Polygon get_polygon() const override
     {
         return polygon;
     }
@@ -65,20 +65,20 @@ struct PolygonObstacle : Obstacle
 
 struct CylinderObstacle : Obstacle
 {
-    double centerX;
-    double centerY;
+    double center_x;
+    double center_y;
     double radius;
-    double numSegments = 10;
+    double num_segments = 10;
 
-    geometry_msgs::msg::Polygon getPolygon() const override
+    geometry_msgs::msg::Polygon get_polygon() const override
     {
         geometry_msgs::msg::Polygon polygon;
 
-        for (int i = 0; i < numSegments; i++)
+        for (int i = 0; i < num_segments; i++)
         {
-            double theta = 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(numSegments);
-            double x = centerX + radius * std::cos(theta);
-            double y = centerY + radius * std::sin(theta);
+            double theta = 2.0 * M_PI * static_cast<double>(i) / static_cast<double>(num_segments);
+            double x = center_x + radius * std::cos(theta);
+            double y = center_y + radius * std::sin(theta);
 
             geometry_msgs::msg::Point32 point;
             point.x = static_cast<float>(x);
@@ -162,34 +162,34 @@ public:
     {
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
-        obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&VoronoiPlanner::getObstacles, this, _1));
-        mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&VoronoiPlanner::getMap, this, _1));
-        voronoiPublisher_ = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi", 10);
+        obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&VoronoiPlanner::get_obstacles, this, _1));
+        map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&VoronoiPlanner::get_map, this, _1));
+        voronoi_publisher = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi", 10);
     }
 
 private:
-    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstaclesSubscritpion_;
-    rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
-    rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr voronoiPublisher_;
+    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstacles_subscritpion;
+    rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr map_subscritpion;
+    rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr voronoi_publisher;
 
     std::vector<std::unique_ptr<Obstacle>> obstacles;
-    geometry_msgs::msg::Polygon mapBorders;
+    geometry_msgs::msg::Polygon map_borders;
 
     CoordinateMapper coordinateMapper;
 
     // Callbacks for topic handling
-    void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
+    void get_obstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
     {
 
         RCLCPP_INFO(this->get_logger(), "Received %zu obstacles", msg.obstacles.size());
 
         for (size_t i = 0; i < msg.obstacles.size(); i++)
         {
-            const auto &msgObstacle = msg.obstacles[i];
+            const auto &msg_obstacle = msg.obstacles[i];
 
             // Access the polygon and radius fields for each obstacle
-            const auto &polygon = msgObstacle.polygon;
-            const auto &radius = msgObstacle.radius;
+            const auto &polygon = msg_obstacle.polygon;
+            const auto &radius = msg_obstacle.radius;
 
             if (radius == 0.0)
             {
@@ -202,8 +202,8 @@ private:
                 // Circle only contains one polygon
                 const auto &point = polygon.points[0];
                 auto obstacle = std::make_unique<CylinderObstacle>();
-                obstacle->centerX = point.x;
-                obstacle->centerY = point.y;
+                obstacle->center_x = point.x;
+                obstacle->center_y = point.y;
                 obstacle->radius = radius / 2.0;
                 obstacles.push_back(std::move(obstacle));
             }
@@ -212,71 +212,71 @@ private:
         generateVoronoiDiagram();
     }
 
-    void getMap(const geometry_msgs::msg::Polygon &msg)
+    void get_map(const geometry_msgs::msg::Polygon &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received map borders");
 
-        mapBorders = msg;
+        map_borders = msg;
     }
 
     void generateVoronoiDiagram()
     {
 
         std::vector<Segment> segments;
-        int image1X, image1Y, image2X, image2Y;
+        int image1_x, image1_y, image2_x, image2_y;
 
         // Convert obstacles and map borders
         for (const auto &obstacle : obstacles)
         {
-            const auto &rosPolygon = obstacle->getPolygon();
+            const auto &ros_polygon = obstacle->get_polygon();
             RCLCPP_INFO(this->get_logger(), "-- Obstacle --");
 
-            for (size_t i = 0; i < rosPolygon.points.size() - 1; ++i)
+            for (size_t i = 0; i < ros_polygon.points.size() - 1; ++i)
             {
-                const auto &point1 = rosPolygon.points[i];
-                const auto &point2 = rosPolygon.points[i + 1];
-                coordinateMapper.gazebo2img(point1.x, point1.y, image1X, image1Y);
-                coordinateMapper.gazebo2img(point2.x, point2.y, image2X, image2Y);
-                RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1X, image1Y, image2X, image2Y);
+                const auto &point1 = ros_polygon.points[i];
+                const auto &point2 = ros_polygon.points[i + 1];
+                coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
+                coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
+                RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
 
-                segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
+                segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
             }
 
             // Connect the last point with the first one
-            const auto &firstPoint = rosPolygon.points.front();
-            const auto &lastPoint = rosPolygon.points.back();
-            coordinateMapper.gazebo2img(firstPoint.x, firstPoint.y, image1X, image1Y);
-            coordinateMapper.gazebo2img(lastPoint.x, lastPoint.y, image2X, image2Y);
+            const auto &first_point = ros_polygon.points.front();
+            const auto &last_point = ros_polygon.points.back();
+            coordinateMapper.gazebo2img(first_point.x, first_point.y, image1_x, image1_y);
+            coordinateMapper.gazebo2img(last_point.x, last_point.y, image2_x, image2_y);
 
-            segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
+            segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
         }
 
         // Create segments for map borders
         RCLCPP_INFO(this->get_logger(), "-- Map --");
 
-        for (size_t i = 0; i < mapBorders.points.size() - 1; ++i)
+        for (size_t i = 0; i < map_borders.points.size() - 1; ++i)
         {
-            const auto &point1 = mapBorders.points[i];
-            const auto &point2 = mapBorders.points[i + 1];
-            coordinateMapper.gazebo2img(point1.x, point1.y, image1X, image1Y);
-            coordinateMapper.gazebo2img(point2.x, point2.y, image2X, image2Y);
-            RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1X, image1Y, image2X, image2Y);
+            const auto &point1 = map_borders.points[i];
+            const auto &point2 = map_borders.points[i + 1];
+            coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
+            coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
+            RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
 
-            segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
+            segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
         }
 
         // Connect the last point of map borders with the first one
-        const auto &firstMapPoint = mapBorders.points.front();
-        const auto &lastMapPoint = mapBorders.points.back();
-        coordinateMapper.gazebo2img(firstMapPoint.x, firstMapPoint.y, image1X, image1Y);
-        coordinateMapper.gazebo2img(lastMapPoint.x, lastMapPoint.y, image2X, image2Y);
+        const auto &first_map_point = map_borders.points.front();
+        const auto &last_map_point = map_borders.points.back();
+        coordinateMapper.gazebo2img(first_map_point.x, first_map_point.y, image1_x, image1_y);
+        coordinateMapper.gazebo2img(last_map_point.x, last_map_point.y, image2_x, image2_y);
 
-        segments.push_back(Segment(image1X, image1Y, image2X, image2Y));
+        segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
 
         boost::polygon::voronoi_diagram<double> vd;
         boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);
 
-        geometry_msgs::msg::Polygon voronoiPolygon;
+        geometry_msgs::msg::Polygon voronoi_polygon;
 
         for (boost::polygon::voronoi_diagram<double>::const_edge_iterator it = vd.edges().begin(); it != vd.edges().end(); ++it)
         {
@@ -286,30 +286,16 @@ private:
                 geometry_msgs::msg::Point32 point;
                 point.x = static_cast<int>(it->vertex0()->x());
                 point.y = static_cast<int>(it->vertex0()->y());
-                voronoiPolygon.points.push_back(point);
+                voronoi_polygon.points.push_back(point);
 
                 // Edge end point
                 point.x = static_cast<int>(it->vertex1()->x());
                 point.y = static_cast<int>(it->vertex1()->y());
-                voronoiPolygon.points.push_back(point);
+                voronoi_polygon.points.push_back(point);
             }
         }
 
-        // for (auto it = vd.vertices().begin(); it != vd.vertices().end(); ++it)
-        // {
-        //     const auto &vertex = *it;
-        //     // RCLCPP_INFO(this->get_logger(), "Voronoi vertex: %f, %f", vertex.x(), vertex.y());
-
-        //     // Create a geometry_msgs::msg::Point message and add it to the polygon
-        //     geometry_msgs::msg::Point32 point;
-        //     point.x = vertex.x();
-        //     point.y = vertex.y();
-        //     point.z = 0.0; // Assuming 2D, so set z to 0
-
-        //     voronoiPolygon.points.push_back(point);
-        // }
-        // Publish the geometry_msgs::msg::Polygon
-        voronoiPublisher_->publish(voronoiPolygon);
+        voronoi_publisher->publish(voronoi_polygon);
     };
 };
 

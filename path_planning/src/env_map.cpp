@@ -9,7 +9,7 @@
 #include <cmath>
 #include <fstream>
 
-#include "CoordinateMapper.hpp"
+#include "../include/CoordinateMapper.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 
