@@ -1,18 +1,18 @@
 #include "../include/VoronoiDijkstra.hpp"
 
-VoronoiDijkstra::VoronoiDijkstra(std::vector<float> voronoi_x, std::vector<float> voronoi_y, float robot_radius_) : robot_radius(robot_radius_),
+VoronoiDijkstra::VoronoiDijkstra(std::vector<double> voronoi_x, std::vector<double> voronoi_y, double robot_radius_) : robot_radius(robot_radius_),
                                                                                                                     sample_x(voronoi_x),
                                                                                                                     sample_y(voronoi_y){};
 
-bool VoronoiDijkstra::check_collision(float s_x, float s_y, float g_x, float g_y, Kdtree::KdTree *obstalces_tree)
+bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double g_y, Kdtree::KdTree *obstalces_tree)
 {
-    float x = s_x;
-    float y = s_y;
+    double x = s_x;
+    double y = s_y;
 
-    float dx = g_x - s_x;
-    float dy = g_y - s_y;
-    float yaw = std::atan2(dy, dx);
-    float d = std::hypot(dx, dy);
+    double dx = g_x - s_x;
+    double dy = g_y - s_y;
+    double yaw = std::atan2(dy, dx);
+    double d = std::hypot(dx, dy);
 
     if (d >= MAX_EDGE_LEN)
     {
@@ -30,7 +30,7 @@ bool VoronoiDijkstra::check_collision(float s_x, float s_y, float g_x, float g_y
 
         const auto &nn = knn[0];
 
-        float dist = nn.dist;
+        double dist = nn.dist;
 
         if (dist <= robot_radius)
         {
@@ -48,7 +48,7 @@ bool VoronoiDijkstra::check_collision(float s_x, float s_y, float g_x, float g_y
 
     const auto &nn = knn[0];
 
-    float dist = nn.dist;
+    double dist = nn.dist;
 
     if (dist <= robot_radius)
     {
@@ -74,8 +74,8 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
 
     for (int i = 0; i < n_sample; i++)
     {
-        float i_x = sample_x[i];
-        float i_y = sample_y[i];
+        double i_x = sample_x[i];
+        double i_y = sample_y[i];
 
         Kdtree::KdNodeVector knn;
         std::vector<double> query = {i_x, i_y};
@@ -87,8 +87,8 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
         for (int j = 1; j < n_sample; j++)
         {
             auto const &nn = knn[j];
-            float n_x = sample_x[nn.index];
-            float n_y = sample_y[nn.index];
+            double n_x = sample_x[nn.index];
+            double n_y = sample_y[nn.index];
 
             if (!check_collision(i_x, i_y, n_x, n_y, obstalces_tree))
             {
@@ -107,9 +107,9 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
     return roadmap;
 }
 
-std::vector<std::vector<float>> VoronoiDijkstra::planning(float s_x, float s_y, float g_x, float g_y, std::vector<float> o_x, std::vector<float> o_y)
+std::vector<std::vector<double>> VoronoiDijkstra::planning(double s_x, double s_y, double g_x, double g_y, std::vector<double> o_x, std::vector<double> o_y)
 {
-    std::vector<std::vector<float>> path;
+    std::vector<std::vector<double>> path;
 
     Kdtree::KdNodeVector obstalces;
 

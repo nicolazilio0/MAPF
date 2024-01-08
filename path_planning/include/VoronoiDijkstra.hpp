@@ -7,24 +7,26 @@
 #include <random>
 #include <limits>
 #include <algorithm>
-#include "../include/kdtree.hpp"
+
+#include "kdtree.hpp"
+#include "DijkstraSearch.hpp"
 
 class VoronoiDijkstra
 {
 public:
-    float robot_radius;
-    std::vector<float> sample_x;
-    std::vector<float> sample_y;
+    double robot_radius;
+    std::vector<double> sample_x;
+    std::vector<double> sample_y;
 
-    const float N_KNN = 15;
-    const float MAX_EDGE_LEN = 30.0;
+    const double N_KNN = 15;
+    const double MAX_EDGE_LEN = 30.0;
 
     // TODO: add Dijkstra search
-    VoronoiDijkstra(std::vector<float> voronoi_x, std::vector<float> voronoi_y, float robot_radius_);
+    VoronoiDijkstra(std::vector<double> voronoi_x, std::vector<double> voronoi_y, double robot_radius_);
 
-    bool check_collision(float s_x, float s_y, float g_x, float g_y, Kdtree::KdTree *obstalces_tree);
+    bool check_collision(double s_x, double s_y, double g_x, double g_y, Kdtree::KdTree *obstalces_tree);
     std::vector<std::vector<int>> generate_roadmap_info(Kdtree::KdTree *obstalces_tree);
-    std::vector<std::vector<float>> planning(float s_x, float s_y, float g_x, float g_y, std::vector<float> o_x, std::vector<float> o_y);
+    std::vector<std::vector<double>> planning(double s_x, double s_y, double g_x, double g_y, std::vector<double> o_x, std::vector<double> o_y);
 };
 
 #endif

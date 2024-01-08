@@ -17,12 +17,11 @@ class DijkstraSearch:
         Node class for dijkstra search
         """
 
-        def __init__(self, x, y, cost=None, parent=None, edge_ids=None):
+        def __init__(self, x, y, cost=None, parent=None):
             self.x = x
             self.y = y
             self.cost = cost
             self.parent = parent
-            self.edge_ids = edge_ids
 
         def __str__(self):
             return str(self.x) + "," + str(self.y) + "," + str(
