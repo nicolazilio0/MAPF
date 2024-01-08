@@ -148,10 +148,11 @@ private:
       auto start = polygon.points[i];
       auto end = polygon.points[i + 1];
 
+      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), color, 2);
+      
       cv::circle(image, cv::Point(start.x, start.y), 2, cv::Scalar(0, 0, 255), 2);
       cv::circle(image, cv::Point(end.x, end.y), 2, cv::Scalar(0, 0, 255), 2);
 
-      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), color, 2);
     }
   }
 

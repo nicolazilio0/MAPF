@@ -165,6 +165,13 @@ public:
         obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&VoronoiPlanner::get_obstacles, this, _1));
         map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&VoronoiPlanner::get_map, this, _1));
         voronoi_publisher = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi", 10);
+
+        obstacles_aquired = false;
+        shelfinos_aquired = false;
+        map_aquired = false;
+        gate_aquired = false;
+
+        planner_timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&VoronoiPlanner::generate_roadmap, this));
     }
 
 private:
@@ -176,6 +183,12 @@ private:
     geometry_msgs::msg::Polygon map_borders;
 
     CoordinateMapper coordinateMapper;
+    rclcpp::TimerBase::SharedPtr planner_timer;
+
+    bool map_aquired;
+    bool obstacles_aquired;
+    bool gate_aquired;
+    bool shelfinos_aquired;
 
     // Callbacks for topic handling
     void get_obstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
@@ -204,12 +217,12 @@ private:
                 auto obstacle = std::make_unique<CylinderObstacle>();
                 obstacle->center_x = point.x;
                 obstacle->center_y = point.y;
-                obstacle->radius = radius / 2.0;
+                obstacle->radius = radius;
                 obstacles.push_back(std::move(obstacle));
             }
         }
 
-        generateVoronoiDiagram();
+        obstacles_aquired = true;
     }
 
     void get_map(const geometry_msgs::msg::Polygon &msg)
@@ -217,24 +230,54 @@ private:
         RCLCPP_INFO(this->get_logger(), "Received map borders");
 
         map_borders = msg;
+
+        map_aquired = true;
     }
 
-    void generateVoronoiDiagram()
+    void generate_roadmap()
     {
-
-        std::vector<Segment> segments;
-        int image1_x, image1_y, image2_x, image2_y;
-
-        // Convert obstacles and map borders
-        for (const auto &obstacle : obstacles)
+        // if (obstacles_aquired && gate_aquired && shelfinos_aquired && map_aquired)
+        if (obstacles_aquired && map_aquired)
         {
-            const auto &ros_polygon = obstacle->get_polygon();
-            RCLCPP_INFO(this->get_logger(), "-- Obstacle --");
+            RCLCPP_INFO(this->get_logger(), "Executing Voronoi");
+            planner_timer->cancel();
 
-            for (size_t i = 0; i < ros_polygon.points.size() - 1; ++i)
+            std::vector<Segment> segments;
+            int image1_x, image1_y, image2_x, image2_y;
+
+            // Convert obstacles and map borders
+            for (const auto &obstacle : obstacles)
             {
-                const auto &point1 = ros_polygon.points[i];
-                const auto &point2 = ros_polygon.points[i + 1];
+                const auto &ros_polygon = obstacle->get_polygon();
+                RCLCPP_INFO(this->get_logger(), "-- Obstacle --");
+
+                for (size_t i = 0; i < ros_polygon.points.size() - 1; ++i)
+                {
+                    const auto &point1 = ros_polygon.points[i];
+                    const auto &point2 = ros_polygon.points[i + 1];
+                    coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
+                    coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
+                    RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
+
+                    segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
+                }
+
+                // Connect the last point with the first one
+                const auto &first_point = ros_polygon.points.front();
+                const auto &last_point = ros_polygon.points.back();
+                coordinateMapper.gazebo2img(first_point.x, first_point.y, image1_x, image1_y);
+                coordinateMapper.gazebo2img(last_point.x, last_point.y, image2_x, image2_y);
+
+                segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
+            }
+
+            // Create segments for map borders
+            RCLCPP_INFO(this->get_logger(), "-- Map --");
+
+            for (size_t i = 0; i < map_borders.points.size() - 1; ++i)
+            {
+                const auto &point1 = map_borders.points[i];
+                const auto &point2 = map_borders.points[i + 1];
                 coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
                 coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
                 RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
@@ -242,60 +285,38 @@ private:
                 segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
             }
 
-            // Connect the last point with the first one
-            const auto &first_point = ros_polygon.points.front();
-            const auto &last_point = ros_polygon.points.back();
-            coordinateMapper.gazebo2img(first_point.x, first_point.y, image1_x, image1_y);
-            coordinateMapper.gazebo2img(last_point.x, last_point.y, image2_x, image2_y);
+            // Connect the last point of map borders with the first one
+            const auto &first_map_point = map_borders.points.front();
+            const auto &last_map_point = map_borders.points.back();
+            coordinateMapper.gazebo2img(first_map_point.x, first_map_point.y, image1_x, image1_y);
+            coordinateMapper.gazebo2img(last_map_point.x, last_map_point.y, image2_x, image2_y);
 
             segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
-        }
 
-        // Create segments for map borders
-        RCLCPP_INFO(this->get_logger(), "-- Map --");
+            boost::polygon::voronoi_diagram<double> vd;
+            boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);
 
-        for (size_t i = 0; i < map_borders.points.size() - 1; ++i)
-        {
-            const auto &point1 = map_borders.points[i];
-            const auto &point2 = map_borders.points[i + 1];
-            coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
-            coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
-            RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
+            geometry_msgs::msg::Polygon voronoi_polygon;
 
-            segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
-        }
-
-        // Connect the last point of map borders with the first one
-        const auto &first_map_point = map_borders.points.front();
-        const auto &last_map_point = map_borders.points.back();
-        coordinateMapper.gazebo2img(first_map_point.x, first_map_point.y, image1_x, image1_y);
-        coordinateMapper.gazebo2img(last_map_point.x, last_map_point.y, image2_x, image2_y);
-
-        segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
-
-        boost::polygon::voronoi_diagram<double> vd;
-        boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);
-
-        geometry_msgs::msg::Polygon voronoi_polygon;
-
-        for (boost::polygon::voronoi_diagram<double>::const_edge_iterator it = vd.edges().begin(); it != vd.edges().end(); ++it)
-        {
-            if (it->is_finite() && it->is_primary())
+            for (boost::polygon::voronoi_diagram<double>::const_edge_iterator it = vd.edges().begin(); it != vd.edges().end(); ++it)
             {
-                // Edge start point
-                geometry_msgs::msg::Point32 point;
-                point.x = static_cast<int>(it->vertex0()->x());
-                point.y = static_cast<int>(it->vertex0()->y());
-                voronoi_polygon.points.push_back(point);
+                if (it->is_finite() && it->is_primary())
+                {
+                    // Edge start point
+                    geometry_msgs::msg::Point32 point;
+                    point.x = static_cast<int>(it->vertex0()->x());
+                    point.y = static_cast<int>(it->vertex0()->y());
+                    voronoi_polygon.points.push_back(point);
 
-                // Edge end point
-                point.x = static_cast<int>(it->vertex1()->x());
-                point.y = static_cast<int>(it->vertex1()->y());
-                voronoi_polygon.points.push_back(point);
+                    // Edge end point
+                    point.x = static_cast<int>(it->vertex1()->x());
+                    point.y = static_cast<int>(it->vertex1()->y());
+                    voronoi_polygon.points.push_back(point);
+                }
             }
-        }
 
-        voronoi_publisher->publish(voronoi_polygon);
+            voronoi_publisher->publish(voronoi_polygon);
+        }
     };
 };
 

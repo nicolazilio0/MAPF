@@ -30,9 +30,14 @@ add_library(DubinsPath
   src/DubinsPath.cpp
 )
 
-#
+# RRTStarDubins
 add_library(RRTStarDubins
   src/RRTStarDubins.cpp
+)
+
+# RRTStarDubins
+add_library(VoronoiDijkstra
+  src/VoronoiDijkstra.cpp
 )
 
 target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
