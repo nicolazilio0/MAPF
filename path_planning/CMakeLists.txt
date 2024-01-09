@@ -75,6 +75,7 @@ target_include_directories(voronoi_planner PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(voronoi_planner
+  Eigen3::Eigen
   Boost::headers
   kdtree
   DijkstraSearch

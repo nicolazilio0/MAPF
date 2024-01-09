@@ -8,6 +8,9 @@
 #include <random>
 #include <cmath>
 #include <fstream>
+#include <chrono>
+
+#include <eigen3/Eigen/Geometry>
 
 #include "rclcpp/rclcpp.hpp"
 
@@ -76,7 +79,35 @@ struct PolygonObstacle : Obstacle
 
     geometry_msgs::msg::Polygon get_polygon() const override
     {
-        return polygon;
+        geometry_msgs::msg::Polygon discr_polygon;
+        // std::cout << "Polygono" << std::endl;
+
+        for (size_t i = 0; i < polygon.points.size(); i++)
+        {
+            const auto &start_point = polygon.points[i];
+            const auto &end_point = polygon.points[(i + 1) % polygon.points.size()];
+
+            double dx = end_point.x - start_point.x;
+            double dy = end_point.y - start_point.y;
+            double dist = std::hypot(dx, dy);
+
+            int discretization_point = (dist / 0.3) + 1;
+
+            // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
+            for (int j = 0; j < discretization_point; j++)
+            {
+                double x = start_point.x + (end_point.x - start_point.x) * static_cast<double>(j) / discretization_point;
+                double y = start_point.y + (end_point.y - start_point.y) * static_cast<double>(j) / discretization_point;
+
+                geometry_msgs::msg::Point32 point;
+                point.x = static_cast<float>(x);
+                point.y = static_cast<float>(y);
+
+                discr_polygon.points.push_back(point);
+            }
+        }
+
+        return discr_polygon;
     }
 };
 
@@ -85,10 +116,11 @@ struct CylinderObstacle : Obstacle
     double center_x;
     double center_y;
     double radius;
-    double num_segments = 10;
 
     geometry_msgs::msg::Polygon get_polygon() const override
     {
+        int num_segments = (2 * M_PI * radius) / (0.3);
+
         geometry_msgs::msg::Polygon polygon;
 
         for (int i = 0; i < num_segments; i++)
@@ -215,7 +247,7 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1_subscritpion;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2_subscritpion;
 
-    geometry_msgs::msg::Polygon map_borders;
+    PolygonObstacle mapBorders;
     std::vector<std::unique_ptr<Obstacle>> obstacles;
     std::vector<Shelfino> shelfinos;
     Gate gate;
@@ -282,7 +314,7 @@ private:
     {
         RCLCPP_INFO(this->get_logger(), "Received map borders");
 
-        map_borders = msg;
+        mapBorders.polygon = msg;
 
         map_aquired = true;
     }
@@ -365,6 +397,8 @@ private:
 
             // Create segments for map borders
 
+            auto map_borders = mapBorders.get_polygon();
+
             for (size_t i = 0; i < map_borders.points.size() - 1; ++i)
             {
                 const auto &point1 = map_borders.points[i];
@@ -397,25 +431,6 @@ private:
 
             geometry_msgs::msg::Polygon voronoi_polygon;
 
-            for (boost::polygon::voronoi_diagram<double>::const_edge_iterator it = vd.edges().begin(); it != vd.edges().end(); ++it)
-            {
-                if (it->is_finite() && it->is_primary())
-                {
-                    // Edge start point
-                    geometry_msgs::msg::Point32 point;
-                    point.x = static_cast<int>(it->vertex0()->x());
-                    point.y = static_cast<int>(it->vertex0()->y());
-                    voronoi_polygon.points.push_back(point);
-
-                    // Edge end point
-                    point.x = static_cast<int>(it->vertex1()->x());
-                    point.y = static_cast<int>(it->vertex1()->y());
-                    voronoi_polygon.points.push_back(point);
-                }
-            }
-
-            voronoi_publisher->publish(voronoi_polygon);
-
             // Generate the path
 
             std::vector<double> voronoi_x;
@@ -429,9 +444,20 @@ private:
                 const auto &vertex = *it;
 
                 coordinateMapper.img2gazebo(vertex.x(), vertex.y(), gazebo_x, gazebo_y);
-                voronoi_x.push_back(gazebo_x);
-                voronoi_y.push_back(gazebo_y);
+                // filter vertex out of workspace
+                if (gazebo_x <= 10 && gazebo_x >= -10 && gazebo_y <= 10 && gazebo_y >= -10)
+                {
+                    voronoi_x.push_back(gazebo_x);
+                    voronoi_y.push_back(gazebo_y);
+
+                    geometry_msgs::msg::Point32 point;
+                    point.x = gazebo_x;
+                    point.y = gazebo_y;
+                    voronoi_polygon.points.push_back(point);
+                }
             }
+
+            voronoi_publisher->publish(voronoi_polygon);
 
             // std::cout << "Executing voronoi planner" << std::endl;
 
@@ -449,17 +475,78 @@ private:
                 // Iterate in reverse the path
                 nav_msgs::msg::Path shelfino_path;
                 shelfino_path.header.frame_id = "map";
-                for (auto it = path.rbegin(); it != path.rend(); ++it)
+                std::reverse(path.begin(), path.end());
+
+                // for (size_t i = 0; i < polygon.points.size(); i++)
+                // {
+                //     const auto &start_point = polygon.points[i];
+                //     const auto &end_point = polygon.points[(i + 1) % polygon.points.size()];
+
+                //     double dx = end_point.x - start_point.x;
+                //     double dy = end_point.y - start_point.y;
+                //     double dist = std::hypot(dx, dy);
+
+                //     int discretization_point = (dist / 0.3) + 1;
+
+                //     // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
+                //     for (int j = 0; j < discretization_point; j++)
+                //     {
+                //         double x = start_point.x + (end_point.x - start_point.x) * static_cast<double>(j) / discretization_point;
+                //         double y = start_point.y + (end_point.y - start_point.y) * static_cast<double>(j) / discretization_point;
+
+                //         geometry_msgs::msg::Point32 point;
+                //         point.x = static_cast<float>(x);
+                //         point.y = static_cast<float>(y);
+
+                //         discr_polygon.points.push_back(point);
+                //     }
+                // }
+
+                for (size_t i = 0; i < path.size() - 1; ++i)
                 {
-                    const auto &point = *it;
+                    const auto &start_point = path[i];
+                    const auto &end_point = path[i + 1];
 
-                    geometry_msgs::msg::PoseStamped pose_stmp;
-                    // Get x,y
-                    pose_stmp.pose.position.x = point[0];
-                    pose_stmp.pose.position.y = point[1];
+                    double dx = end_point[0] - start_point[0];
+                    double dy = end_point[1] - start_point[1];
+                    double dist = std::hypot(dx, dy);
+                    double yaw = std::atan2(dy, dx);
 
-                    shelfino_path.poses.push_back(pose_stmp);
+                    int discretization_point = (dist / 0.1); // discretize the path in 0.1m steps
+
+                    for (int j = 0; j < discretization_point; j++)
+                    {
+                        double x = start_point[0] + (end_point[0] - start_point[0]) * static_cast<double>(j) / discretization_point;
+                        double y = start_point[1] + (end_point[1] - start_point[1]) * static_cast<double>(j) / discretization_point;
+
+                        geometry_msgs::msg::PoseStamped pose_stmp;
+
+                        pose_stmp.pose.position.x = x;
+                        pose_stmp.pose.position.y = y;
+
+                        Eigen::Quaterniond quat;
+                        quat = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
+
+                        // Get quaternion orientation from yaw
+                        pose_stmp.pose.orientation.x = quat.x();
+                        pose_stmp.pose.orientation.y = quat.y();
+                        pose_stmp.pose.orientation.z = quat.z();
+                        pose_stmp.pose.orientation.w = quat.w();
+
+                        shelfino_path.poses.push_back(pose_stmp);
+                        shelfino_path.poses.push_back(pose_stmp);
+                    }
                 }
+
+                // for (const auto &point : path)
+                // {
+                //     geometry_msgs::msg::PoseStamped pose_stmp;
+                //     // Get x,y
+                //     pose_stmp.pose.position.x = point[0];
+                //     pose_stmp.pose.position.y = point[1];
+
+                //     shelfino_path.poses.push_back(pose_stmp);
+                // }
 
                 // Sent the path accordingly to the shelfino's id
                 switch (id)

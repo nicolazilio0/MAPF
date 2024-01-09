@@ -5,14 +5,14 @@ using namespace dijkstra;
 bool DijkstraSearch::is_same_node(double node_x, double node_y, Node *node_b)
 {
     double dist = std::hypot(node_x - node_b->x, node_y - node_b->y);
-    return dist <= 0.1;
+    return dist <= 0.01;
 }
 
 bool DijkstraSearch::is_same_node(Node *node_a, Node *node_b)
 {
     double dist = std::hypot(node_a->x - node_b->x, node_a->y - node_b->y);
 
-    return dist <= 0.1;
+    return dist <= 0.01;
 }
 
 int DijkstraSearch::find_id(Node *target_node)

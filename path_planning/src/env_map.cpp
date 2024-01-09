@@ -143,16 +143,13 @@ private:
 
   void drawVoronoi(const geometry_msgs::msg::Polygon &polygon, cv::Mat &image, const cv::Scalar &color = cv::Scalar(2, 134, 242))
   {
-    for (size_t i = 0; i < polygon.points.size() - 1; i += 2)
+    for (size_t i = 0; i < polygon.points.size(); i++)
     {
-      auto start = polygon.points[i];
-      auto end = polygon.points[i + 1];
+      int image1X, image1Y;
+      auto point = polygon.points[i];
+      coordinateMapper.gazebo2img(point.x, point.y, image1X, image1Y);
 
-      cv::line(image, cv::Point(start.x, start.y), cv::Point(end.x, end.y), color, 2);
-      
-      cv::circle(image, cv::Point(start.x, start.y), 2, cv::Scalar(0, 0, 255), 2);
-      cv::circle(image, cv::Point(end.x, end.y), 2, cv::Scalar(0, 0, 255), 2);
-
+      cv::circle(image, cv::Point(image1X, image1Y), 2, color, 2);
     }
   }
 

@@ -18,7 +18,7 @@ public:
     std::vector<double> sample_x;
     std::vector<double> sample_y;
 
-    const double N_KNN = 30;
+    const double N_KNN = 50;
     const double MAX_EDGE_LEN = 30.0;
 
     // TODO: add Dijkstra search

@@ -372,9 +372,10 @@ private:
                 // Iterate in reverse the path
                 nav_msgs::msg::Path shelfino_path;
                 shelfino_path.header.frame_id = "map";
-                for (auto it = path.rbegin(); it != path.rend(); ++it)
+                std::reverse(path.begin(), path.end());
+
+                for (const auto &point : path)
                 {
-                    const auto &point = *it;
 
                     geometry_msgs::msg::PoseStamped pose_stmp;
                     // Get x,y
