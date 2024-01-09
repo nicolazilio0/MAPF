@@ -154,7 +154,7 @@ public:
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
         obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&RRTStarDubinsPlanner::get_obstacles, this, _1));
-        gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&RRTStarDubinsPlanner::get_gates, this, _1));
+        gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&RRTStarDubinsPlanner::get_gate, this, _1));
         map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&RRTStarDubinsPlanner::get_map, this, _1));
 
         std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0_odom = std::bind(&RRTStarDubinsPlanner::get_shelfino_position, this, _1, 0);
@@ -244,7 +244,8 @@ private:
 
         obstacles_aquired = true;
     }
-    void get_gates(const geometry_msgs::msg::PoseArray &msg)
+
+    void get_gate(const geometry_msgs::msg::PoseArray &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received gate");
 

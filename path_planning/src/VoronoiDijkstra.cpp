@@ -102,7 +102,6 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
         }
 
         roadmap.push_back(edge_id);
-        std::cout << "edge size: " << edge_id.size() << std::endl;
     }
 
     return roadmap;

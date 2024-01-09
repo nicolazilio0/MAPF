@@ -69,7 +69,6 @@ std::vector<std::vector<double>> DijkstraSearch::search()
 
     while (true)
     {
-        std::cout << "searching" << std::endl;
 
         if (has_node_in_set(close_set, goal))
         {
@@ -93,7 +92,6 @@ std::vector<std::vector<double>> DijkstraSearch::search()
             });
 
         int current_id = min_cost_it->first;
-        std::cout << current_id << std::endl;
 
         current_node = open_set[current_id];
 

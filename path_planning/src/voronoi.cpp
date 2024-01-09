@@ -12,6 +12,9 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "nav_msgs/msg/odometry.hpp"
+#include "nav_msgs/msg/path.hpp"
+
+#include "nav_msgs/msg/odometry.hpp"
 
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/point32.hpp"
@@ -48,6 +51,19 @@ static const rmw_qos_profile_t rmw_qos_profile_custom =
         RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
         RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
         false};
+
+struct Shelfino
+{
+    int id;
+    geometry_msgs::msg::Point position;
+    geometry_msgs::msg::Quaternion orientation;
+};
+
+struct Gate
+{
+    geometry_msgs::msg::Point position;
+    geometry_msgs::msg::Quaternion orientation;
+};
 
 struct Obstacle
 {
@@ -164,8 +180,21 @@ public:
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
         obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&VoronoiPlanner::get_obstacles, this, _1));
+        gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&VoronoiPlanner::get_gate, this, _1));
         map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&VoronoiPlanner::get_map, this, _1));
+
         voronoi_publisher = this->create_publisher<geometry_msgs::msg::Polygon>("voronoi", 10);
+
+        shelfino0_path_publisher = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
+        shelfino1_path_publisher = this->create_publisher<nav_msgs::msg::Path>("shelfino1/plan1", 10);
+        shelfino2_path_publisher = this->create_publisher<nav_msgs::msg::Path>("shelfino2/plan1", 10);
+
+        std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0_odom = std::bind(&VoronoiPlanner::get_shelfino_position, this, _1, 0);
+        std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino1_odom = std::bind(&VoronoiPlanner::get_shelfino_position, this, _1, 1);
+        std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino2_odom = std::bind(&VoronoiPlanner::get_shelfino_position, this, _1, 2);
+        shelfino0_subscritpion = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0_odom);
+        shelfino1_subscritpion = this->create_subscription<nav_msgs::msg::Odometry>("shelfino1/odom", 10, shelfino1_odom);
+        shelfino2_subscritpion = this->create_subscription<nav_msgs::msg::Odometry>("shelfino2/odom", 10, shelfino2_odom);
 
         obstacles_aquired = false;
         shelfinos_aquired = false;
@@ -177,11 +206,23 @@ public:
 
 private:
     rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstacles_subscritpion;
+    rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gates_subscritpion;
     rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr map_subscritpion;
+
     rclcpp::Publisher<geometry_msgs::msg::Polygon>::SharedPtr voronoi_publisher;
 
-    std::vector<std::unique_ptr<Obstacle>> obstacles;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0_subscritpion;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino1_subscritpion;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino2_subscritpion;
+
     geometry_msgs::msg::Polygon map_borders;
+    std::vector<std::unique_ptr<Obstacle>> obstacles;
+    std::vector<Shelfino> shelfinos;
+    Gate gate;
+
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino0_path_publisher;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino1_path_publisher;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino2_path_publisher;
 
     CoordinateMapper coordinateMapper;
     rclcpp::TimerBase::SharedPtr planner_timer;
@@ -226,6 +267,17 @@ private:
         obstacles_aquired = true;
     }
 
+    void get_gate(const geometry_msgs::msg::PoseArray &msg)
+    {
+        RCLCPP_INFO(this->get_logger(), "Received gate");
+
+        const auto &pose = msg.poses[0];
+        gate.position = pose.position;
+        gate.orientation = pose.orientation;
+
+        gate_aquired = true;
+    }
+
     void get_map(const geometry_msgs::msg::Polygon &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received map borders");
@@ -235,10 +287,42 @@ private:
         map_aquired = true;
     }
 
+    void get_shelfino_position(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
+    {
+        auto it = std::find_if(shelfinos.begin(), shelfinos.end(),
+                               [robotId](const Shelfino &shelfino)
+                               { return shelfino.id == robotId; });
+
+        if (it == shelfinos.end())
+        {
+            RCLCPP_INFO(this->get_logger(), "Received Shelfino %d odometry", robotId);
+
+            Shelfino shelfino;
+            shelfino.id = robotId;
+            shelfinos.push_back(shelfino);
+            it = std::prev(shelfinos.end());
+        }
+
+        it->position = msg->pose.pose.position;
+        it->orientation = msg->pose.pose.orientation;
+
+        // Check if messages have been received for all three robots
+        if (shelfinos.size() == 3)
+        {
+            // Unsubscribe from the topics
+            shelfino0_subscritpion.reset();
+            shelfino1_subscritpion.reset();
+            shelfino2_subscritpion.reset();
+
+            RCLCPP_INFO(this->get_logger(), "Recived all Shelfinos");
+
+            shelfinos_aquired = true;
+        }
+    }
+
     void generate_roadmap()
     {
-        // if (obstacles_aquired && gate_aquired && shelfinos_aquired && map_aquired)
-        if (obstacles_aquired && map_aquired)
+        if (obstacles_aquired && gate_aquired && shelfinos_aquired && map_aquired)
         {
             RCLCPP_INFO(this->get_logger(), "Executing Voronoi");
             planner_timer->cancel();
@@ -309,28 +393,6 @@ private:
             boost::polygon::voronoi_diagram<double> vd;
             boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);
 
-            std::vector<double> voronoi_x;
-            std::vector<double> voronoi_y;
-
-            double gazebo_x;
-            double gazebo_y;
-
-            for (auto it = vd.vertices().begin(); it != vd.vertices().end(); ++it)
-            {
-                const auto &vertex = *it;
-
-                coordinateMapper.img2gazebo(vertex.x(), vertex.y(), gazebo_x, gazebo_y);
-                voronoi_x.push_back(gazebo_x);
-                voronoi_y.push_back(gazebo_y);
-                std::cout << "[" << gazebo_x << ", " << gazebo_y << "]"<< std::endl;
-            }
-
-            std::cout << "Executing voronoi planner" << std::endl;
-
-            VoronoiDijkstra voronoiDijkstra(voronoi_x, voronoi_y);
-            std::vector<std::vector<double>> path = voronoiDijkstra.planning(0.0, 0.0, 0.18, -6.42, o_x, o_y);
-            std::cout << "path size: " << path.size() << std::endl;
-
             // Send the diagram to the gui
 
             geometry_msgs::msg::Polygon voronoi_polygon;
@@ -353,6 +415,66 @@ private:
             }
 
             voronoi_publisher->publish(voronoi_polygon);
+
+            // Generate the path
+
+            std::vector<double> voronoi_x;
+            std::vector<double> voronoi_y;
+
+            double gazebo_x;
+            double gazebo_y;
+
+            for (auto it = vd.vertices().begin(); it != vd.vertices().end(); ++it)
+            {
+                const auto &vertex = *it;
+
+                coordinateMapper.img2gazebo(vertex.x(), vertex.y(), gazebo_x, gazebo_y);
+                voronoi_x.push_back(gazebo_x);
+                voronoi_y.push_back(gazebo_y);
+            }
+
+            // std::cout << "Executing voronoi planner" << std::endl;
+
+            auto gate_pos = gate.position;
+
+            for (const auto &shelfino : shelfinos)
+            {
+                auto id = shelfino.id;
+                auto shelfino_pos = shelfino.position;
+
+                VoronoiDijkstra voronoiDijkstra(voronoi_x, voronoi_y);
+                std::vector<std::vector<double>> path = voronoiDijkstra.planning(shelfino_pos.x, shelfino_pos.y, gate_pos.x, gate_pos.y, o_x, o_y);
+                std::cout << "path size: " << path.size() << std::endl;
+
+                // Iterate in reverse the path
+                nav_msgs::msg::Path shelfino_path;
+                shelfino_path.header.frame_id = "map";
+                for (auto it = path.rbegin(); it != path.rend(); ++it)
+                {
+                    const auto &point = *it;
+
+                    geometry_msgs::msg::PoseStamped pose_stmp;
+                    // Get x,y
+                    pose_stmp.pose.position.x = point[0];
+                    pose_stmp.pose.position.y = point[1];
+
+                    shelfino_path.poses.push_back(pose_stmp);
+                }
+
+                // Sent the path accordingly to the shelfino's id
+                switch (id)
+                {
+                case 0:
+                    shelfino0_path_publisher->publish(shelfino_path);
+                    break;
+                case 1:
+                    shelfino1_path_publisher->publish(shelfino_path);
+                    break;
+                case 2:
+                    shelfino2_path_publisher->publish(shelfino_path);
+                    break;
+                }
+            }
         }
     };
 };
