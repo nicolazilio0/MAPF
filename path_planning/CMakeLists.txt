@@ -35,9 +35,23 @@ add_library(RRTStarDubins
   src/RRTStarDubins.cpp
 )
 
-# RRTStarDubins
+# kdtree
+add_library(kdtree
+  src/kdtree.cpp
+)
+
+# DijkstraSearch
+add_library(DijkstraSearch
+  src/DijkstraSearch.cpp
+)
+
+# VoronoiDijkstra
 add_library(VoronoiDijkstra
   src/VoronoiDijkstra.cpp
+)
+target_link_libraries(VoronoiDijkstra
+    kdtree
+    DijkstraSearch
 )
 
 target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
@@ -62,6 +76,9 @@ target_include_directories(voronoi_planner PRIVATE
 )
 target_link_libraries(voronoi_planner
   Boost::headers
+  kdtree
+  DijkstraSearch
+  VoronoiDijkstra
 )
 
 # RRT*
@@ -88,6 +105,9 @@ target_include_directories(orchestrator PRIVATE
 install(TARGETS
   DubinsPath
   RRTStarDubins
+  kdtree
+  DijkstraSearch
+  VoronoiDijkstra
   env_map
   voronoi_planner
   rrt_star_planner

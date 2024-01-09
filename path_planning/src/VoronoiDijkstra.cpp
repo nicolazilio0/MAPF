@@ -1,8 +1,8 @@
 #include "../include/VoronoiDijkstra.hpp"
 
 VoronoiDijkstra::VoronoiDijkstra(std::vector<double> voronoi_x, std::vector<double> voronoi_y, double robot_radius_) : robot_radius(robot_radius_),
-                                                                                                                    sample_x(voronoi_x),
-                                                                                                                    sample_y(voronoi_y){};
+                                                                                                                       sample_x(voronoi_x),
+                                                                                                                       sample_y(voronoi_y){};
 
 bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double g_y, Kdtree::KdTree *obstalces_tree)
 {
@@ -84,7 +84,7 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
 
         std::vector<int> edge_id;
 
-        for (int j = 1; j < n_sample; j++)
+        for (size_t j = 1; j < knn.size(); j++)
         {
             auto const &nn = knn[j];
             double n_x = sample_x[nn.index];
@@ -102,6 +102,7 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
         }
 
         roadmap.push_back(edge_id);
+        std::cout << "edge size: " << edge_id.size() << std::endl;
     }
 
     return roadmap;
@@ -109,7 +110,6 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
 
 std::vector<std::vector<double>> VoronoiDijkstra::planning(double s_x, double s_y, double g_x, double g_y, std::vector<double> o_x, std::vector<double> o_y)
 {
-    std::vector<std::vector<double>> path;
 
     Kdtree::KdNodeVector obstalces;
 
@@ -126,6 +126,10 @@ std::vector<std::vector<double>> VoronoiDijkstra::planning(double s_x, double s_
     sample_y.push_back(g_y);
 
     std::vector<std::vector<int>> road_map_info = generate_roadmap_info(&obstalces_tree);
+
+    dijkstra::DijkstraSearch dijkstra(s_x, s_y, g_x, g_y, sample_x, sample_y, road_map_info);
+
+    std::vector<std::vector<double>> path = dijkstra.search();
 
     return path;
 }

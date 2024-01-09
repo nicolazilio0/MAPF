@@ -29,6 +29,7 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "../include/CoordinateMapper.hpp"
+#include "../include/VoronoiDijkstra.hpp"
 
 #include <boost/polygon/voronoi.hpp>
 
@@ -242,6 +243,9 @@ private:
             RCLCPP_INFO(this->get_logger(), "Executing Voronoi");
             planner_timer->cancel();
 
+            std::vector<double> o_x;
+            std::vector<double> o_y;
+
             std::vector<Segment> segments;
             int image1_x, image1_y, image2_x, image2_y;
 
@@ -249,15 +253,19 @@ private:
             for (const auto &obstacle : obstacles)
             {
                 const auto &ros_polygon = obstacle->get_polygon();
-                RCLCPP_INFO(this->get_logger(), "-- Obstacle --");
 
                 for (size_t i = 0; i < ros_polygon.points.size() - 1; ++i)
                 {
                     const auto &point1 = ros_polygon.points[i];
                     const auto &point2 = ros_polygon.points[i + 1];
+
+                    o_x.push_back(point1.x);
+                    o_x.push_back(point2.x);
+                    o_y.push_back(point1.y);
+                    o_y.push_back(point2.y);
+
                     coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
                     coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
-                    RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
 
                     segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
                 }
@@ -272,15 +280,19 @@ private:
             }
 
             // Create segments for map borders
-            RCLCPP_INFO(this->get_logger(), "-- Map --");
 
             for (size_t i = 0; i < map_borders.points.size() - 1; ++i)
             {
                 const auto &point1 = map_borders.points[i];
                 const auto &point2 = map_borders.points[i + 1];
+
+                o_x.push_back(point1.x);
+                o_x.push_back(point2.x);
+                o_y.push_back(point1.y);
+                o_y.push_back(point2.y);
+
                 coordinateMapper.gazebo2img(point1.x, point1.y, image1_x, image1_y);
                 coordinateMapper.gazebo2img(point2.x, point2.y, image2_x, image2_y);
-                RCLCPP_INFO(this->get_logger(), "%i,%i ; %i,%i", image1_x, image1_y, image2_x, image2_y);
 
                 segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
             }
@@ -293,8 +305,33 @@ private:
 
             segments.push_back(Segment(image1_x, image1_y, image2_x, image2_y));
 
+            // Create the Voronoi diagram
             boost::polygon::voronoi_diagram<double> vd;
             boost::polygon::construct_voronoi(segments.begin(), segments.end(), &vd);
+
+            std::vector<double> voronoi_x;
+            std::vector<double> voronoi_y;
+
+            double gazebo_x;
+            double gazebo_y;
+
+            for (auto it = vd.vertices().begin(); it != vd.vertices().end(); ++it)
+            {
+                const auto &vertex = *it;
+
+                coordinateMapper.img2gazebo(vertex.x(), vertex.y(), gazebo_x, gazebo_y);
+                voronoi_x.push_back(gazebo_x);
+                voronoi_y.push_back(gazebo_y);
+                std::cout << "[" << gazebo_x << ", " << gazebo_y << "]"<< std::endl;
+            }
+
+            std::cout << "Executing voronoi planner" << std::endl;
+
+            VoronoiDijkstra voronoiDijkstra(voronoi_x, voronoi_y);
+            std::vector<std::vector<double>> path = voronoiDijkstra.planning(0.0, 0.0, 0.18, -6.42, o_x, o_y);
+            std::cout << "path size: " << path.size() << std::endl;
+
+            // Send the diagram to the gui
 
             geometry_msgs::msg::Polygon voronoi_polygon;
 
