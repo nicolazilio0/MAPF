@@ -4,6 +4,7 @@ VoronoiDijkstra::VoronoiDijkstra(std::vector<double> voronoi_x, std::vector<doub
                                                                                                                        sample_x(voronoi_x),
                                                                                                                        sample_y(voronoi_y){};
 
+// Check for collision between two points considering the robot's radius
 bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double g_y, Kdtree::KdTree *obstalces_tree)
 {
     double x = s_x;
@@ -14,6 +15,7 @@ bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double
     double yaw = std::atan2(dy, dx);
     double d = std::hypot(dx, dy);
 
+    // If the distance between points exceeds a maximum edge length, consider a collision
     if (d >= MAX_EDGE_LEN)
     {
         return true;
@@ -34,7 +36,7 @@ bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double
 
         if (dist <= robot_radius)
         {
-            return true;
+            return true; // Collision detected during traversal
         }
 
         x += robot_radius * std::cos(yaw);
@@ -52,12 +54,13 @@ bool VoronoiDijkstra::check_collision(double s_x, double s_y, double g_x, double
 
     if (dist <= robot_radius)
     {
-        return true;
+        return true; // Check for collision at the destination point
     }
 
-    return false;
+    return false; // No collision detected
 }
 
+// Generate roadmap information for VoronoiDijkstra planning
 std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdTree *obstalces_tree)
 {
     std::vector<std::vector<int>> roadmap;
@@ -115,6 +118,7 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
     return roadmap;
 }
 
+// Perform VoronoiDijkstra planning
 std::vector<std::vector<double>> VoronoiDijkstra::planning(double s_x, double s_y, double g_x, double g_y, std::vector<double> o_x, std::vector<double> o_y)
 {
 
@@ -127,15 +131,19 @@ std::vector<std::vector<double>> VoronoiDijkstra::planning(double s_x, double s_
 
     Kdtree::KdTree obstalces_tree(&obstalces);
 
+    // Add start and goal points to the sample points (voronoi verteces alredy present)
     sample_x.push_back(s_x);
     sample_y.push_back(s_y);
     sample_x.push_back(g_x);
     sample_y.push_back(g_y);
 
+    // Generate roadmap information
     std::vector<std::vector<int>> road_map_info = generate_roadmap_info(&obstalces_tree);
 
+    // Initialize DijkstraSearch for planning
     dijkstra::DijkstraSearch dijkstra(s_x, s_y, g_x, g_y, sample_x, sample_y, road_map_info);
 
+    // Perform DijkstraSearch to find the optimal path
     std::vector<std::vector<double>> path = dijkstra.search();
 
     return path;

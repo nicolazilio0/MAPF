@@ -218,7 +218,7 @@ private:
                 check_collision = false;
                 std::cout << "NO collisions" << std::endl;
                 // once the collisions are fixed
-                // add to the front of the path the initial pose for the delay timestep calculated
+                // calculate the delay time given const max velocity and delay steps
 
                 path0_delay = getDelay(path0_delay);
                 path1_delay = getDelay(path1_delay);

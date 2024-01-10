@@ -76,6 +76,7 @@ struct PolygonObstacle : Obstacle
 {
     geometry_msgs::msg::Polygon polygon;
 
+    // approx the obstacle as a circle
     std::vector<double> get_obstacle() const override
     {
 
@@ -122,6 +123,7 @@ struct MapBorder
 {
     geometry_msgs::msg::Polygon polygon;
 
+    // Threat the perimeter as a list of obstacles with a small radius
     std::vector<std::vector<double>> discretize_border(int discretization_point = 20, double radius = 0.01)
     {
         std::vector<std::vector<double>> points;
@@ -337,6 +339,8 @@ private:
             rrtstar::Node *goal = new rrtstar::Node(position.x, position.y, gate_yaw);
 
             double total_duration = 0;
+
+            // generate the path for each selfino
 
             for (const auto &shelfino : shelfinos)
             {

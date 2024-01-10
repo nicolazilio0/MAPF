@@ -77,6 +77,7 @@ struct PolygonObstacle : Obstacle
 {
     geometry_msgs::msg::Polygon polygon;
 
+    // Discretize the polygon to have more viapoints in Voronoi diagram and avoid collision
     geometry_msgs::msg::Polygon get_polygon() const override
     {
         geometry_msgs::msg::Polygon discr_polygon;
@@ -117,6 +118,8 @@ struct CylinderObstacle : Obstacle
     double center_y;
     double radius;
 
+    // discretize the circumference as a set of segments to generate the voronoi diagram
+    // this is also needed to avoid osbtacles since the planner works with obstalces discretized in points
     geometry_msgs::msg::Polygon get_polygon() const override
     {
         int num_segments = (2 * M_PI * radius) / (0.3);
@@ -142,6 +145,8 @@ struct CylinderObstacle : Obstacle
         return polygon;
     }
 };
+
+// User define point and segment to generate voronoi diagram
 
 struct Point
 {
@@ -362,6 +367,7 @@ private:
             std::vector<double> o_x;
             std::vector<double> o_y;
 
+            // Create a list of segments to discretize polygons and circles
             std::vector<Segment> segments;
             int image1_x, image1_y, image2_x, image2_y;
 
@@ -439,6 +445,7 @@ private:
             double gazebo_x;
             double gazebo_y;
 
+            // get only the voronoi's vertices
             for (auto it = vd.vertices().begin(); it != vd.vertices().end(); ++it)
             {
                 const auto &vertex = *it;
@@ -457,13 +464,15 @@ private:
                 }
             }
 
+            // publish voronoi diagram to map visualizer
             voronoi_publisher->publish(voronoi_polygon);
 
-            // std::cout << "Executing voronoi planner" << std::endl;
+            RCLCPP_INFO(this->get_logger(), "Executing Voronoi + Dijkstra");
 
             auto gate_pos = gate.position;
             double total_duration = 0;
 
+            // generate the path for each selfino
             for (const auto &shelfino : shelfinos)
             {
                 auto id = shelfino.id;
@@ -498,9 +507,11 @@ private:
                     double dx = end_point[0] - start_point[0];
                     double dy = end_point[1] - start_point[1];
                     double dist = std::hypot(dx, dy);
+                    // try to get the robot orientatio through viapoints
                     double yaw = std::atan2(dy, dx);
 
                     int discretization_point = (dist / 0.1); // discretize the path in 0.1m steps
+                    // this is need since the collision avoidance alg. in the orchestrator works with this step size
 
                     for (int j = 0; j < discretization_point; j++)
                     {
@@ -515,7 +526,6 @@ private:
                         Eigen::Quaterniond quat;
                         quat = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
 
-                        // Get quaternion orientation from yaw
                         pose_stmp.pose.orientation.x = quat.x();
                         pose_stmp.pose.orientation.y = quat.y();
                         pose_stmp.pose.orientation.z = quat.z();

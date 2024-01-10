@@ -21,12 +21,13 @@ RRTStarDubins::RRTStarDubins(Node *start, Node *goal, std::vector<std::vector<do
 {
 }
 
+// Generates a random node in the workspace, considering the goal with a certain range
 Node *RRTStarDubins::get_random_node()
 {
-
     std::uniform_int_distribution<int> int_distribution(0, 100);
     if (int_distribution(generator) > goal_sample_rate)
     {
+        // Generate random x, y, and yaw values
         std::uniform_real_distribution<double> x_distribution(min_rand, max_rand);
         std::uniform_real_distribution<double> y_distribution(min_rand, max_rand);
         std::uniform_real_distribution<double> yaw_distribution(-M_PI, M_PI);
@@ -40,18 +41,21 @@ Node *RRTStarDubins::get_random_node()
     }
     else
     {
+        // Return the goal node with a certain probability
         return end;
     }
 }
 
-// Assuming node_list is a vector<Node>
+// Finds the nearest node in the tree to a given random node
 Node *RRTStarDubins::get_nearest_node(Node *rnd_node)
 {
     double min_dist = std::numeric_limits<double>::max();
     Node *nearest_node;
 
+    // Iterate through all nodes in the tree
     for (Node *node : node_list)
     {
+        // Calculate Euclidean distance
         double distance = std::pow(node->x - rnd_node->x, 2) + std::pow(node->y - rnd_node->y, 2);
         if (distance < min_dist)
         {
@@ -63,21 +67,27 @@ Node *RRTStarDubins::get_nearest_node(Node *rnd_node)
     return nearest_node;
 }
 
+// Steers from one node to another and returns the new node if a valid Dubins path is found
 Node *RRTStarDubins::steer(Node *from_node, Node *to_node)
 {
+    // Plan a Dubins path from 'from_node' to 'to_node'
     auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.plan_dubins_path(
         from_node->x, from_node->y, from_node->yaw,
         to_node->x, to_node->y, to_node->yaw, curvature);
 
+    // If the Dubins path is not found, return nullptr
     if (px.size() <= 1)
     { // cannot find a Dubins path
         return nullptr;
     }
 
+    // Create a new node at the end of the Dubins path
     Node *new_node = new Node(px.back(), py.back(), pyaw.back());
     new_node->path_x = px;
     new_node->path_y = py;
     new_node->path_yaw = pyaw;
+
+    // Calculate the cost of the new node based on the Dubins path lengths
     new_node->cost += std::accumulate(course_lengths.begin(), course_lengths.end(), 0.0,
                                       [](double acc, double val)
                                       {
@@ -89,6 +99,7 @@ Node *RRTStarDubins::steer(Node *from_node, Node *to_node)
     return new_node;
 }
 
+// Checks collision for a given node's path with obstacles
 bool RRTStarDubins::check_collision(Node *node)
 {
     if (node == NULL)
@@ -96,6 +107,7 @@ bool RRTStarDubins::check_collision(Node *node)
         return false;
     }
 
+    // Iterate through obstacles and check collision for each point in the node's path
     for (auto &obstacle : obstacle_list)
     {
         double ox = obstacle[0];
@@ -108,6 +120,7 @@ bool RRTStarDubins::check_collision(Node *node)
             double dy = oy - node->path_y[i];
             double d = dx * dx + dy * dy;
 
+            // Check collision
             if (d <= std::pow(size + robot_radius, 2))
             {
                 return false; // collision
@@ -117,12 +130,15 @@ bool RRTStarDubins::check_collision(Node *node)
 
     return true; // safe
 }
+
+// Finds nodes near the given new node within a certain radius
 std::vector<Node *> RRTStarDubins::find_near_nodes(Node *new_node)
 {
     std::vector<Node *> nnodes;
     size_t nnode = node_list.size() + 1;
     double r = connect_circle_dist * std::sqrt(std::log(nnode) / nnode);
 
+    // Iterate through all nodes and find those within the radius
     for (Node *node : node_list)
     {
         double distance = std::pow(node->x - new_node->x, 2) + std::pow(node->y - new_node->y, 2);
@@ -136,12 +152,14 @@ std::vector<Node *> RRTStarDubins::find_near_nodes(Node *new_node)
     return nnodes;
 }
 
+// Calculates the new cost of reaching 'to_node' from 'from_node' using Dubins path lengths
 double RRTStarDubins::calc_new_cost(Node *from_node, Node *to_node)
 {
     auto [px, py, pyaw, mode, course_lengths] = dubbins_planner.plan_dubins_path(
         from_node->x, from_node->y, from_node->yaw,
         to_node->x, to_node->y, to_node->yaw, curvature);
 
+    // Calculate the cost based on Dubins path lengths
     double cost = std::accumulate(course_lengths.begin(), course_lengths.end(), 0.0,
                                   [](double acc, double val)
                                   {
@@ -151,6 +169,7 @@ double RRTStarDubins::calc_new_cost(Node *from_node, Node *to_node)
     return from_node->cost + cost;
 }
 
+// Chooses the parent node for the new node among the nearby nodes with the lowest cost
 Node *RRTStarDubins::choose_parent(Node *new_node, std::vector<Node *> nnodes)
 {
 
@@ -165,6 +184,7 @@ Node *RRTStarDubins::choose_parent(Node *new_node, std::vector<Node *> nnodes)
     {
         Node *t_node = steer(node, new_node);
 
+        // If a valid Dubins path is found and there is no collision, calculate the cost
         if (t_node && check_collision(t_node))
         {
             costs.push_back(calc_new_cost(node, new_node));
@@ -175,6 +195,7 @@ Node *RRTStarDubins::choose_parent(Node *new_node, std::vector<Node *> nnodes)
         }
     }
 
+    // Find the node with the minimum cost
     auto min_cost_iter = std::min_element(costs.begin(), costs.end());
     double min_cost = *min_cost_iter;
 
@@ -191,6 +212,7 @@ Node *RRTStarDubins::choose_parent(Node *new_node, std::vector<Node *> nnodes)
     return new_node;
 }
 
+// Propagates the cost to leaves starting from the parent node
 void RRTStarDubins::propagate_cost_to_leaves(Node *parent_node)
 {
     for (Node *node : node_list)
@@ -203,6 +225,7 @@ void RRTStarDubins::propagate_cost_to_leaves(Node *parent_node)
     }
 }
 
+// Rewires the tree considering the new node and nearby nodes
 void RRTStarDubins::rewire(Node *new_node, std::vector<Node *> nnodes)
 {
     for (Node *near_node : nnodes)
@@ -216,9 +239,11 @@ void RRTStarDubins::rewire(Node *new_node, std::vector<Node *> nnodes)
 
         edge_node->cost = calc_new_cost(new_node, near_node);
 
+        // Check collision and compare costs
         bool no_collision = check_collision(edge_node);
         bool improved_cost = near_node->cost > edge_node->cost;
 
+        // If there is no collision and the cost is improved, rewire the tree
         if (no_collision && improved_cost)
         {
             for (Node *node : node_list)
@@ -234,6 +259,7 @@ void RRTStarDubins::rewire(Node *new_node, std::vector<Node *> nnodes)
     }
 }
 
+// Calculates the Euclidean distance from a point to the goal
 double RRTStarDubins::calc_dist_to_goal(double x, double y)
 {
     double dx = x - end->x;
@@ -241,10 +267,12 @@ double RRTStarDubins::calc_dist_to_goal(double x, double y)
     return std::hypot(dx, dy);
 }
 
+// Searches for the best goal node among nodes within the goal region
 Node *RRTStarDubins::search_best_goal_node()
 {
     std::vector<Node *> goal_nodes;
 
+    // Find nodes within the goal region based on xy coordinates
     for (Node *node : node_list)
     {
         if (calc_dist_to_goal(node->x, node->y) <= goal_xy_th)
@@ -253,7 +281,7 @@ Node *RRTStarDubins::search_best_goal_node()
         }
     }
 
-    // Angle check
+    // Check angle compatibility
     std::vector<Node *> final_goal_nodes;
 
     for (Node *node : goal_nodes)
@@ -264,11 +292,13 @@ Node *RRTStarDubins::search_best_goal_node()
         }
     }
 
+    // If no compatible goal nodes are found, return NULL
     if (final_goal_nodes.size() == 0)
     {
         return NULL;
     }
 
+    // Find the goal node with the minimum cost
     double min_cost = std::numeric_limits<double>::infinity();
     Node *best_goal_node = NULL;
 
@@ -284,16 +314,17 @@ Node *RRTStarDubins::search_best_goal_node()
     return best_goal_node;
 }
 
+// Generates the final path from the start to the goal node
 std::vector<std::vector<double>> RRTStarDubins::generate_final_course(Node *goal_node)
 {
     std::vector<std::vector<double>> path{{end->x, end->y, end->yaw}};
     Node *node = goal_node;
 
+    // Reconstruct the path by backtracking from the goal node to the start
     while (node->parent)
     {
         for (size_t i = node->path_x.size(); i > 0; --i)
         {
-            // std::cout << node->path_x[i - 1] << " , " << node->path_y[i - 1] << std::endl;
             path.push_back({node->path_x[i - 1], node->path_y[i - 1], node->path_yaw[i - 1]});
         }
         node = node->parent;
@@ -303,22 +334,25 @@ std::vector<std::vector<double>> RRTStarDubins::generate_final_course(Node *goal
     return path;
 }
 
+// The main planning function that runs the RRT* algorithm
 std::vector<std::vector<double>> RRTStarDubins::planning(bool search_until_max_iter)
 {
+    // Initialize the node list with the start node
     node_list.push_back(start);
 
+    // Iterate for a maximum number of iterations
     for (int i = 0; i < max_iter; ++i)
     {
-        // std::cout << "Iter: " << i << ", number of nodes: " << node_list.size() << std::endl;
+        Node *rnd = get_random_node();              // Generate a random node
+        Node *nearest_node = get_nearest_node(rnd); // Find the nearest node in the tree
+        Node *new_node = steer(nearest_node, rnd);  // Steer towards the random node
 
-        Node *rnd = get_random_node();
-        Node *nearest_node = get_nearest_node(rnd);
-        Node *new_node = steer(nearest_node, rnd);
-
+        // Check collision for the new node's path
         if (check_collision(new_node))
         {
-            std::vector<Node *> near_nodes = find_near_nodes(new_node);
-            new_node = choose_parent(new_node, near_nodes);
+            // Find nearby nodes and choose a parent for the new node
+            std::vector<Node *> near_nodes = find_near_nodes(new_node); // Add the new node to the tree
+            new_node = choose_parent(new_node, near_nodes);             // Rewire the tree considering the new node
 
             if (new_node)
             {
@@ -327,6 +361,8 @@ std::vector<std::vector<double>> RRTStarDubins::planning(bool search_until_max_i
             }
         }
 
+        // If searching until the maximum iteration is not required and a new node is found,
+        // check if the goal is reached and return the final path
         if (!search_until_max_iter && new_node)
         {
             Node *best_node = search_best_goal_node();
@@ -337,8 +373,7 @@ std::vector<std::vector<double>> RRTStarDubins::planning(bool search_until_max_i
         }
     }
 
-    // std::cout << "Reached max iteration" << std::endl;
-
+    // If maximum iterations are reached, or no valid path is found, return an empty path
     Node *best_node = search_best_goal_node();
     if (best_node)
     {

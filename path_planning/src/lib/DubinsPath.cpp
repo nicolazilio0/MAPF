@@ -2,6 +2,7 @@
 
 DubinsPath::DubinsPath()
 {
+    // Initialize PATH_TYPE_MAP with Dubins path planning functions
     PATH_TYPE_MAP = {
         {"LSL", std::bind(&DubinsPath::LSL, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)},
         {"RSR", std::bind(&DubinsPath::RSR, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)},
@@ -11,12 +12,14 @@ DubinsPath::DubinsPath()
         {"LRL", std::bind(&DubinsPath::LRL, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)}};
 }
 
+// Function to create a 2D rotation matrix from angle
 Eigen::Matrix2d DubinsPath::rot_mat_2d(double angle)
 {
     Eigen::Rotation2Dd rotation(angle);
     return rotation.toRotationMatrix();
 }
 
+// Function to normalize an angle between 0 and 2*pi (or 0 and 360 degrees)
 double DubinsPath::angle_mod(double x, bool zero_2_2pi, bool degree)
 {
     if (degree)
@@ -46,11 +49,13 @@ double DubinsPath::angle_mod(double x, bool zero_2_2pi, bool degree)
     return mod_angle;
 }
 
+// Function to normalize an angle between -pi and pi
 double DubinsPath::mod2pi(double theta)
 {
     return angle_mod(theta, true);
 }
 
+// Function to calculate sine, cosine, and their combinations for given angles
 std::tuple<double, double, double, double, double> DubinsPath::calc_trig_funcs(double alpha, double beta)
 {
     double sin_a = std::sin(alpha);
@@ -62,6 +67,7 @@ std::tuple<double, double, double, double, double> DubinsPath::calc_trig_funcs(d
     return std::make_tuple(sin_a, sin_b, cos_a, cos_b, cos_ab);
 }
 
+// Dubins path planning function for LSL type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LSL(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -78,6 +84,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LSL(dou
     return {d1, d2, d3, mode};
 }
 
+// Dubins path planning function for RSR type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RSR(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -94,6 +101,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RSR(dou
     return {d1, d2, d3, mode};
 }
 
+// Dubins path planning function for LSR type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LSR(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -110,6 +118,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LSR(dou
     return {d2, d1, d3, mode};
 }
 
+// Dubins path planning function for RSL type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RSL(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -126,6 +135,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RSL(dou
     return {d2, d1, d3, mode};
 }
 
+// Dubins path planning function for RLR type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RLR(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -141,6 +151,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::RLR(dou
     return {d1, d2, d3, mode};
 }
 
+// Dubins path planning function for LRL type
 std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LRL(double alpha, double beta, double d)
 {
     auto [sin_a, sin_b, cos_a, cos_b, cos_ab] = calc_trig_funcs(alpha, beta);
@@ -156,6 +167,7 @@ std::tuple<double, double, double, std::vector<std::string>> DubinsPath::LRL(dou
     return {d1, d2, d3, mode};
 }
 
+// Main Dubins path planning function from the origin to a target point
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::vector<std::string>, std::vector<double>> DubinsPath::dubins_path_planning_from_origin(
     double end_x, double end_y, double end_yaw, double curvature,
     double step_size, const std::vector<std::function<std::tuple<double, double, double, std::vector<std::string>>(double, double, double)>> &planning_funcs)
@@ -206,6 +218,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::v
     return std::make_tuple(x_list, y_list, yaw_list, b_mode, lengths);
 }
 
+// Function to interpolate points along a Dubins path
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> DubinsPath::interpolate(
     double length, const std::string &mode, double max_curvature, double origin_x, double origin_y,
     double origin_yaw, std::vector<double> &path_x, std::vector<double> &path_y, std::vector<double> &path_yaw)
@@ -247,6 +260,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> Dubins
     return {path_x, path_y, path_yaw};
 }
 
+// Function to generate a local Dubins path given lengths and modes
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> DubinsPath::generate_local_course(
     const std::vector<double> &lengths, const std::vector<std::string> &modes, double max_curvature, double step_size)
 {
@@ -285,6 +299,7 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> Dubins
     return {p_x, p_y, p_yaw};
 }
 
+// Main function to plan a Dubins path from a starting point to a target point
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::vector<std::string>, std::vector<double>> DubinsPath::plan_dubins_path(
     double s_x, double s_y, double s_yaw, double g_x, double g_y, double g_yaw, double curvature,
     double step_size, const std::vector<std::string> &selected_types)
@@ -312,8 +327,6 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>, std::v
 
     // calculate local goal x, y, yaw
     Eigen::Matrix2d l_rot = rot_mat_2d(s_yaw);
-    // l_rot << std::cos(s_yaw), -std::sin(s_yaw),
-    //     std::sin(s_yaw), std::cos(s_yaw);
 
     Eigen::Vector2d le_xy = Eigen::Vector2d(g_x - s_x, g_y - s_y).transpose() * l_rot;
     double local_goal_x = le_xy[0];
