@@ -91,7 +91,7 @@ struct PolygonObstacle : Obstacle
             double dy = end_point.y - start_point.y;
             double dist = std::hypot(dx, dy);
 
-            int discretization_point = (dist / 0.3) + 1;
+            int discretization_point = (dist / 0.4) + 1;
 
             // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
             for (int j = 0; j < discretization_point; j++)

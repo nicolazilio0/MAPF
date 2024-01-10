@@ -113,7 +113,7 @@ private:
         return static_cast<double>(delay_steps) * step_discr / const_velocity;
     }
 
-    void checkCollisions(nav_msgs::msg::Path &path0, nav_msgs::msg::Path &path1, nav_msgs::msg::Path &path2, double &path0_delay, double &path1_delay, double &path2_delay, double safety_dis = 0.5)
+    void checkCollisions(nav_msgs::msg::Path &path0, nav_msgs::msg::Path &path1, nav_msgs::msg::Path &path2, double &path0_delay, double &path1_delay, double &path2_delay, double safety_dis = 1)
     {
         int max_timestep = std::max({static_cast<int>(path0.poses.size()),
                                      static_cast<int>(path1.poses.size()),
