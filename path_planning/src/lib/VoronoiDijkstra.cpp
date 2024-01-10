@@ -1,4 +1,4 @@
-#include "../include/VoronoiDijkstra.hpp"
+#include "../../include/VoronoiDijkstra.hpp"
 
 VoronoiDijkstra::VoronoiDijkstra(std::vector<double> voronoi_x, std::vector<double> voronoi_y, double robot_radius_) : robot_radius(robot_radius_),
                                                                                                                        sample_x(voronoi_x),

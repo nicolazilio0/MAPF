@@ -1,4 +1,4 @@
-#include "../include/kdtree.hpp"
+#include "../../include/kdtree.hpp"
 
 using namespace Kdtree;
 

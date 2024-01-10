@@ -1,4 +1,4 @@
-#include "../include/DijkstraSearch.hpp"
+#include "../../include/DijkstraSearch.hpp"
 
 using namespace dijkstra;
 

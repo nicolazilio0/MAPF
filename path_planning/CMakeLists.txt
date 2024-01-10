@@ -27,27 +27,27 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 # DubinsPath
 add_library(DubinsPath
-  src/DubinsPath.cpp
+  src/lib/DubinsPath.cpp
 )
 
 # RRTStarDubins
 add_library(RRTStarDubins
-  src/RRTStarDubins.cpp
+  src/lib/RRTStarDubins.cpp
 )
 
 # kdtree
 add_library(kdtree
-  src/kdtree.cpp
+  src/lib/kdtree.cpp
 )
 
 # DijkstraSearch
 add_library(DijkstraSearch
-  src/DijkstraSearch.cpp
+  src/lib/DijkstraSearch.cpp
 )
 
 # VoronoiDijkstra
 add_library(VoronoiDijkstra
-  src/VoronoiDijkstra.cpp
+  src/lib/VoronoiDijkstra.cpp
 )
 target_link_libraries(VoronoiDijkstra
     kdtree
