@@ -23,7 +23,9 @@ find_package(obstacles_msgs REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
-include_directories( ${OpenCV_INCLUDE_DIRS} )
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+# == Shared libs
 
 # DubinsPath
 add_library(DubinsPath
@@ -56,6 +58,8 @@ target_link_libraries(VoronoiDijkstra
 
 target_include_directories(DubinsPath PRIVATE ${Eigen3_INCLUDE_DIRS})
 target_link_libraries(DubinsPath Eigen3::Eigen)
+
+# == Evasion problem
 
 # Map 
 add_executable(env_map src/env_map.cpp)
@@ -103,16 +107,56 @@ target_include_directories(orchestrator PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# == Victims problem
+
+# Victims Map 
+add_executable(env_map_victims src/env_map_victims.cpp)
+ament_target_dependencies(env_map_victims sensor_msgs cv_bridge image_transport geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+target_include_directories(env_map_victims PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(env_map_victims
+  Eigen3::Eigen
+  ${OpenCV_LIBRARIES}
+)
+
+# Victims Planner (RRT* extension) 
+add_executable(victims_planner src/victims.cpp)
+ament_target_dependencies(victims_planner geometry_msgs nav_msgs rclcpp std_msgs obstacles_msgs)
+
+target_include_directories(victims_planner PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(victims_planner
+  DubinsPath
+  RRTStarDubins
+  Eigen3::Eigen
+)
+
+# Victims Orchestrator
+add_executable(orchestrator_victims src/orchestrator_victims.cpp)
+ament_target_dependencies(orchestrator_victims geometry_msgs nav_msgs nav2_msgs rclcpp rclcpp_action std_msgs)
+
+target_include_directories(orchestrator_victims PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 install(TARGETS
+  # lib 
   DubinsPath
   RRTStarDubins
   kdtree
   DijkstraSearch
   VoronoiDijkstra
+  # evacuation 
   env_map
   voronoi_planner
   rrt_star_planner
   orchestrator
+  # victims 
+  env_map_victims
+  victims_planner
+  orchestrator_victims
   DESTINATION lib/${PROJECT_NAME}
 )
 

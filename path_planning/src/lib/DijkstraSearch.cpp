@@ -25,7 +25,7 @@ int DijkstraSearch::find_id(Node *target_node)
         }
     }
 
-    return NULL;
+    return 0;
 }
 
 bool DijkstraSearch::has_node_in_set(tsl::ordered_map<int, Node *> &target_set, Node *node)
