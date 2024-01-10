@@ -473,8 +473,13 @@ private:
 
                 VoronoiDijkstra voronoiDijkstra(voronoi_x, voronoi_y);
                 std::vector<std::vector<double>> path = voronoiDijkstra.planning(shelfino_pos.x, shelfino_pos.y, gate_pos.x, gate_pos.y, o_x, o_y);
+                if (path.size() == 0)
+                {
+                    // interrupt the shelfino planning process if path is not founded
+                    break;
+                }
                 auto stop_time = std::chrono::high_resolution_clock::now();
-                
+
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
 
                 std::cout << "Path for shelfino" << id << " founded in: " << duration.count() << "milliseconds" << std::endl;

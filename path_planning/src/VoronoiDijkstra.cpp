@@ -62,12 +62,14 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
 {
     std::vector<std::vector<int>> roadmap;
     int n_sample = sample_x.size();
+    std::vector<std::vector<double>> nodes_vct;
 
     Kdtree::KdNodeVector nodes;
 
     for (int i = 0; i < n_sample; i++)
     {
         nodes.push_back(Kdtree::KdNode({sample_x[i], sample_y[i]}));
+        nodes_vct.push_back({sample_x[i], sample_y[i]});
     }
 
     Kdtree::KdTree nodes_tree(&nodes);
@@ -87,12 +89,18 @@ std::vector<std::vector<int>> VoronoiDijkstra::generate_roadmap_info(Kdtree::KdT
         for (size_t j = 1; j < knn.size(); j++)
         {
             auto const &nn = knn[j];
-            double n_x = sample_x[nn.index];
-            double n_y = sample_y[nn.index];
+
+            // kdtree index is not the same as the nodes index
+            std::vector<double> node = {nn.point[0], nn.point[1]};
+            auto it = std::find(nodes_vct.begin(), nodes_vct.end(), node);
+            size_t index = std::distance(nodes_vct.begin(), it);
+
+            double n_x = sample_x[index];
+            double n_y = sample_y[index];
 
             if (!check_collision(i_x, i_y, n_x, n_y, obstalces_tree))
             {
-                edge_id.push_back(nn.index);
+                edge_id.push_back(index);
             }
 
             if (edge_id.size() >= N_KNN)
