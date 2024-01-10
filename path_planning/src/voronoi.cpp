@@ -468,39 +468,21 @@ private:
                 auto id = shelfino.id;
                 auto shelfino_pos = shelfino.position;
 
+                RCLCPP_INFO(this->get_logger(), "Shelfino %i", id);
+                auto start_time = std::chrono::high_resolution_clock::now();
+
                 VoronoiDijkstra voronoiDijkstra(voronoi_x, voronoi_y);
                 std::vector<std::vector<double>> path = voronoiDijkstra.planning(shelfino_pos.x, shelfino_pos.y, gate_pos.x, gate_pos.y, o_x, o_y);
-                std::cout << "path size: " << path.size() << std::endl;
+                auto stop_time = std::chrono::high_resolution_clock::now();
+                
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
+
+                std::cout << "Path for shelfino" << id << " founded in: " << duration.count() << "milliseconds" << std::endl;
 
                 // Iterate in reverse the path
                 nav_msgs::msg::Path shelfino_path;
                 shelfino_path.header.frame_id = "map";
                 std::reverse(path.begin(), path.end());
-
-                // for (size_t i = 0; i < polygon.points.size(); i++)
-                // {
-                //     const auto &start_point = polygon.points[i];
-                //     const auto &end_point = polygon.points[(i + 1) % polygon.points.size()];
-
-                //     double dx = end_point.x - start_point.x;
-                //     double dy = end_point.y - start_point.y;
-                //     double dist = std::hypot(dx, dy);
-
-                //     int discretization_point = (dist / 0.3) + 1;
-
-                //     // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
-                //     for (int j = 0; j < discretization_point; j++)
-                //     {
-                //         double x = start_point.x + (end_point.x - start_point.x) * static_cast<double>(j) / discretization_point;
-                //         double y = start_point.y + (end_point.y - start_point.y) * static_cast<double>(j) / discretization_point;
-
-                //         geometry_msgs::msg::Point32 point;
-                //         point.x = static_cast<float>(x);
-                //         point.y = static_cast<float>(y);
-
-                //         discr_polygon.points.push_back(point);
-                //     }
-                // }
 
                 for (size_t i = 0; i < path.size() - 1; ++i)
                 {
@@ -537,16 +519,6 @@ private:
                         shelfino_path.poses.push_back(pose_stmp);
                     }
                 }
-
-                // for (const auto &point : path)
-                // {
-                //     geometry_msgs::msg::PoseStamped pose_stmp;
-                //     // Get x,y
-                //     pose_stmp.pose.position.x = point[0];
-                //     pose_stmp.pose.position.y = point[1];
-
-                //     shelfino_path.poses.push_back(pose_stmp);
-                // }
 
                 // Sent the path accordingly to the shelfino's id
                 switch (id)
