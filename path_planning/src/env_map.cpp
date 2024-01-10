@@ -83,7 +83,7 @@ public:
     const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
     obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&EnvironmentMap::get_obstacles, this, _1));
-    gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::get_gates, this, _1));
+    gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&EnvironmentMap::get_gate, this, _1));
     map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&EnvironmentMap::get_map, this, _1));
 
     map_publisher = this->create_publisher<sensor_msgs::msg::Image>("map_image", 10);
@@ -276,7 +276,7 @@ private:
     map_publisher->publish(*img_msg.get());
   }
 
-  void get_gates(const geometry_msgs::msg::PoseArray &msg)
+  void get_gate(const geometry_msgs::msg::PoseArray &msg)
   {
     RCLCPP_INFO(this->get_logger(), "Received gate");
 

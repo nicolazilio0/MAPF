@@ -27,14 +27,12 @@ public:
 
     Orchestrator() : Node("path_follower_node")
     {
-        std::function<void(const nav_msgs::msg::Path::SharedPtr msg)> shelfino0Path = std::bind(&Orchestrator::getPath, this, _1, 0);
+        shelfino0_path_subscritpion = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, std::bind(&Orchestrator::get_path, this, _1));
 
-        shelfino0PathSubscritpion_ = this->create_subscription<nav_msgs::msg::Path>("shelfino0/plan1", 10, shelfino0Path);
-
-        shelfino0_action_client_ = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
+        shelfino0_action_client = rclcpp_action::create_client<FollowPath>(this, "shelfino0/follow_path");
 
         // Wait for the action server to become available
-        if (!shelfino0_action_client_->wait_for_action_server())
+        if (!shelfino0_action_client->wait_for_action_server())
         {
             RCLCPP_ERROR(this->get_logger(), "Action server shelfino1 not available");
             rclcpp::shutdown();
@@ -44,68 +42,41 @@ public:
 
         shelfino0_path_recived = false;
 
-        orchestratorTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Orchestrator::sendPlan, this));
+        orchestrator_timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&Orchestrator::send_plan, this));
     }
 
 private:
-    rclcpp_action::Client<FollowPath>::SharedPtr shelfino0_action_client_;
+    rclcpp_action::Client<FollowPath>::SharedPtr shelfino0_action_client;
 
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0PathSubscritpion_;
-    bool shelfinos_path_recived[1];
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr shelfino0_path_subscritpion;
+
     bool shelfino0_path_recived;
     nav_msgs::msg::Path shelfino0_path;
 
-    rclcpp::TimerBase::SharedPtr orchestratorTimer_;
-    rclcpp::TimerBase::SharedPtr path0_delay_timer_;
+    rclcpp::TimerBase::SharedPtr orchestrator_timer;
+    rclcpp::TimerBase::SharedPtr path0_delay_timer;
 
-    void getPath(const nav_msgs::msg::Path::SharedPtr &msg, int robotId)
+    void get_path(const nav_msgs::msg::Path &msg)
     {
-        RCLCPP_INFO(this->get_logger(), "Received path map for %i", robotId);
+        RCLCPP_INFO(this->get_logger(), "Received path map for 0");
 
-        switch (robotId)
-        {
-        case 0:
-            shelfino0_path_recived = true;
-            shelfino0_path = *msg;
-            break;
-        }
+        shelfino0_path_recived = true;
+        shelfino0_path = msg;
     }
 
-    double getDelay(int delay_steps, double step_discr = 0.1, double const_velocity = 0.2)
-    {
-        return static_cast<double>(delay_steps) * step_discr / const_velocity;
-    }
-
-    void sendPlan()
+    void send_plan()
     {
 
         if (shelfino0_path_recived)
         {
             RCLCPP_INFO(this->get_logger(), "Checking and sending paths");
-            orchestratorTimer_->cancel();
+            orchestrator_timer->cancel();
 
-            double path0_delay = 0;
-
-            path0_delay = getDelay(path0_delay);
-            // checkCollisions(shelfino0_path, shelfino1_path, shelfino2_path, path0_delay, path1_delay, path2_delay);
-
-            path0_delay_timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(path0_delay * 1000)), [this]()
-                                                         { sendGoal(0); });
-        }
-    }
-
-    void sendGoal(int robot_id)
-    {
-        FollowPath::Goal goal_msg;
-        goal_msg.controller_id = "FollowPath";
-
-        switch (robot_id)
-        {
-        case 0:
-            path0_delay_timer_->cancel();
+            FollowPath::Goal goal_msg;
+            goal_msg.controller_id = "FollowPath";
             goal_msg.path = shelfino0_path;
-            shelfino0_action_client_->async_send_goal(goal_msg);
-            break;
+
+            shelfino0_action_client->async_send_goal(goal_msg);
         }
     }
 };

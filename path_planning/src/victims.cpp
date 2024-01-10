@@ -69,59 +69,59 @@ struct Gate
 
 struct Obstacle
 {
-    virtual std::vector<double> getObstacle() const = 0;
+    virtual std::vector<double> get_obstacle() const = 0;
 };
 
 struct PolygonObstacle : Obstacle
 {
     geometry_msgs::msg::Polygon polygon;
 
-    std::vector<double> getObstacle() const override
+    std::vector<double> get_obstacle() const override
     {
 
         // Initialize the bounding box coordinates
-        double minX = std::numeric_limits<double>::max();
-        double maxX = std::numeric_limits<double>::lowest();
-        double minY = std::numeric_limits<double>::max();
-        double maxY = std::numeric_limits<double>::lowest();
+        double min_x = std::numeric_limits<double>::max();
+        double max_x = std::numeric_limits<double>::lowest();
+        double min_y = std::numeric_limits<double>::max();
+        double max_y = std::numeric_limits<double>::lowest();
 
         // Calculate the bounding box
         for (const auto &point : polygon.points)
         {
-            minX = std::min(minX, static_cast<double>(point.x));
-            maxX = std::max(maxX, static_cast<double>(point.x));
-            minY = std::min(minY, static_cast<double>(point.y));
-            maxY = std::max(maxY, static_cast<double>(point.y));
+            min_x = std::min(min_x, static_cast<double>(point.x));
+            max_x = std::max(max_x, static_cast<double>(point.x));
+            min_y = std::min(min_y, static_cast<double>(point.y));
+            max_y = std::max(max_y, static_cast<double>(point.y));
         }
 
         // Calculate the center of the bounding box
-        double centerX = (minX + maxX) / 2.0;
-        double centerY = (minY + maxY) / 2.0;
+        double center_x = (min_x + max_x) / 2.0;
+        double center_y = (min_y + max_y) / 2.0;
 
         // Calculate the radius (diameter/2) of the bounding circle
-        double radius = std::sqrt((maxX - minX) * (maxX - minX) + (maxY - minY) * (maxY - minY)) / 2.0;
+        double radius = std::sqrt((max_x - min_x) * (max_x - min_x) + (max_y - min_y) * (max_y - min_y)) / 2.0;
 
         // Return the vector containing center_x, center_y, and radius
-        return {centerX, centerY, radius};
+        return {center_x, center_y, radius};
     }
 };
 
 struct CylinderObstacle : Obstacle
 {
-    double centerX;
-    double centerY;
+    double center_x;
+    double center_y;
     double radius;
 
-    std::vector<double> getObstacle() const override
+    std::vector<double> get_obstacle() const override
     {
-        return {centerX, centerY, radius};
+        return {center_x, center_y, radius};
     }
 };
 
 struct Victim
 {
-    double centerX;
-    double centerY;
+    double center_x;
+    double center_y;
     double radius = 0.5;
     double value;
 };
@@ -130,20 +130,20 @@ struct MapBorder
 {
     geometry_msgs::msg::Polygon polygon;
 
-    std::vector<std::vector<double>> discretizeBorder(int discretizationPoint = 20, double radius = 0.01)
+    std::vector<std::vector<double>> discretize_border(int discretization_point = 20, double radius = 0.01)
     {
         std::vector<std::vector<double>> points;
 
         for (size_t i = 0; i < polygon.points.size(); ++i)
         {
-            const auto &startPoint = polygon.points[i];
-            const auto &endPoint = polygon.points[(i + 1) % polygon.points.size()];
+            const auto &start_point = polygon.points[i];
+            const auto &end_point = polygon.points[(i + 1) % polygon.points.size()];
 
             // Calculate intermediate points along the edge for (int j = 0; j < numPointsPerEdge; ++j)
-            for (int j = 0; j < discretizationPoint; ++j)
+            for (int j = 0; j < discretization_point; ++j)
             {
-                double x = startPoint.x + (endPoint.x - startPoint.x) * static_cast<double>(j) / discretizationPoint;
-                double y = startPoint.y + (endPoint.y - startPoint.y) * static_cast<double>(j) / discretizationPoint;
+                double x = start_point.x + (end_point.x - start_point.x) * static_cast<double>(j) / discretization_point;
+                double y = start_point.y + (end_point.y - start_point.y) * static_cast<double>(j) / discretization_point;
 
                 points.push_back({x, y, radius});
             }
@@ -161,71 +161,70 @@ public:
     {
         const auto qos = rclcpp::QoS(rclcpp::KeepLast(1), rmw_qos_profile_custom);
 
-        obstaclesSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&RRTStarDubinsPlanner::getObstacles, this, _1));
-        gatesSubscritpion_ = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&RRTStarDubinsPlanner::getGates, this, _1));
-        mapSubscritpion_ = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&RRTStarDubinsPlanner::getMap, this, _1));
-        victimSubscritpion_ = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("victims", qos, std::bind(&RRTStarDubinsPlanner::getVictims, this, _1));
+        obstacles_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("obstacles", qos, std::bind(&RRTStarDubinsPlanner::get_obstacles, this, _1));
+        gates_subscritpion = this->create_subscription<geometry_msgs::msg::PoseArray>("gate_position", qos, std::bind(&RRTStarDubinsPlanner::get_gate, this, _1));
+        map_subscritpion = this->create_subscription<geometry_msgs::msg::Polygon>("map_borders", qos, std::bind(&RRTStarDubinsPlanner::get_map, this, _1));
+        victim_subscritpion = this->create_subscription<obstacles_msgs::msg::ObstacleArrayMsg>("victims", qos, std::bind(&RRTStarDubinsPlanner::get_victims, this, _1));
 
-        std::function<void(const nav_msgs::msg::Odometry::SharedPtr msg)> shelfino0Odom = std::bind(&RRTStarDubinsPlanner::getShelfinoPosition, this, _1, 0);
+        shelfino0_path_publisher = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
+        shelfino0_subscritpion = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, std::bind(&RRTStarDubinsPlanner::get_shelfino_position, this, _1));
 
-        shelfino0PathPublisher_ = this->create_publisher<nav_msgs::msg::Path>("shelfino0/plan1", 10);
+        obstacles_aquired = false;
+        shelfino_aquired = false;
+        map_aquired = false;
+        gate_aquired = false;
+        victims_aquired = false;
 
-        shelfino0Subscritpion_ = this->create_subscription<nav_msgs::msg::Odometry>("shelfino0/odom", 10, shelfino0Odom);
+        rnd_min = -10;
+        rnd_max = 10;
 
-        obstaclesAquired = false;
-        shelfinosAquired = false;
-        mapAquired = false;
-        gateAquired = false;
-        victimsAquired = false;
-        rndMin = -10;
-        rndMax = 10;
-
-        plannerTimer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RRTStarDubinsPlanner::generateRoadmap, this));
+        planner_timer = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&RRTStarDubinsPlanner::generate_roadmap, this));
     }
 
 private:
-    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstaclesSubscritpion_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gatesSubscritpion_;
-    rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr mapSubscritpion_;
-    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr victimSubscritpion_;
+    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr obstacles_subscritpion;
+    rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gates_subscritpion;
+    rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr map_subscritpion;
+    rclcpp::Subscription<obstacles_msgs::msg::ObstacleArrayMsg>::SharedPtr victim_subscritpion;
 
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0Subscritpion_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr shelfino0_subscritpion;
 
-    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino0PathPublisher_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr shelfino0_path_publisher;
 
     MapBorder mapBorder;
     std::vector<std::unique_ptr<Obstacle>> obstacles;
     std::vector<std::unique_ptr<Victim>> victims;
     std::vector<std::unique_ptr<Victim>> victims_copy;
 
-    std::vector<Shelfino> shelfinos;
+    Shelfino shelfino0;
     Gate gate;
 
     CoordinateMapper coordinateMapper;
     DubinsPath dubinsPath;
-    rclcpp::TimerBase::SharedPtr plannerTimer_;
+    rclcpp::TimerBase::SharedPtr planner_timer;
 
-    bool mapAquired;
-    bool obstaclesAquired;
-    bool gateAquired;
-    bool shelfinosAquired;
-    bool victimsAquired;
-    double rndMin;
-    double rndMax;
+    bool map_aquired;
+    bool obstacles_aquired;
+    bool gate_aquired;
+    bool shelfino_aquired;
+    bool victims_aquired;
+
+    double rnd_min;
+    double rnd_max;
 
     // Callbacks for topic handling
-    void getObstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
+    void get_obstacles(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
     {
 
         RCLCPP_INFO(this->get_logger(), "Received %zu obstacles", msg.obstacles.size());
 
         for (size_t i = 0; i < msg.obstacles.size(); i++)
         {
-            const auto &msgObstacle = msg.obstacles[i];
+            const auto &msg_obstacle = msg.obstacles[i];
 
             // Access the polygon and radius fields for each obstacle
-            const auto &polygon = msgObstacle.polygon;
-            const auto &radius = msgObstacle.radius;
+            const auto &polygon = msg_obstacle.polygon;
+            const auto &radius = msg_obstacle.radius;
 
             if (radius == 0.0)
             {
@@ -238,16 +237,17 @@ private:
                 // Circle only contains one polygon
                 const auto &point = polygon.points[0];
                 auto obstacle = std::make_unique<CylinderObstacle>();
-                obstacle->centerX = point.x;
-                obstacle->centerY = point.y;
+                obstacle->center_x = point.x;
+                obstacle->center_y = point.y;
                 obstacle->radius = radius;
                 obstacles.push_back(std::move(obstacle));
             }
         }
 
-        obstaclesAquired = true;
+        obstacles_aquired = true;
     }
-    void getGates(const geometry_msgs::msg::PoseArray &msg)
+
+    void get_gate(const geometry_msgs::msg::PoseArray &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received gate");
 
@@ -255,75 +255,59 @@ private:
         gate.position = pose.position;
         gate.orientation = pose.orientation;
 
-        gateAquired = true;
+        gate_aquired = true;
     }
 
-    void getMap(const geometry_msgs::msg::Polygon &msg)
+    void get_map(const geometry_msgs::msg::Polygon &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received map borders");
         mapBorder.polygon = msg;
 
-        mapAquired = true;
+        map_aquired = true;
     }
 
-    void getShelfinoPosition(const nav_msgs::msg::Odometry::SharedPtr &msg, int robotId)
+    void get_shelfino_position(const nav_msgs::msg::Odometry &msg)
     {
-        auto it = std::find_if(shelfinos.begin(), shelfinos.end(),
-                               [robotId](const Shelfino &shelfino)
-                               { return shelfino.id == robotId; });
 
-        if (it == shelfinos.end())
-        {
-            RCLCPP_INFO(this->get_logger(), "Received Shelfino %d odometry", robotId);
+        shelfino0.id = 0;
 
-            Shelfino shelfino;
-            shelfino.id = robotId;
-            shelfinos.push_back(shelfino);
-            it = std::prev(shelfinos.end());
-        }
+        shelfino0.position = msg.pose.pose.position;
+        shelfino0.orientation = msg.pose.pose.orientation;
 
-        it->position = msg->pose.pose.position;
-        it->orientation = msg->pose.pose.orientation;
+        shelfino0_subscritpion.reset();
 
-        // Check if messages have been received for all three robots
-        if (shelfinos.size() == 1)
-        {
-            // Unsubscribe from the topics
-            shelfino0Subscritpion_.reset();
+        RCLCPP_INFO(this->get_logger(), "Recived all Shelfinos");
 
-            RCLCPP_INFO(this->get_logger(), "Recived all Shelfinos");
-
-            shelfinosAquired = true;
-        }
+        shelfino_aquired = true;
     }
 
     // Callbacks for topic handling
-    void getVictims(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
+    void get_victims(const obstacles_msgs::msg::ObstacleArrayMsg &msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received %zu victims", msg.obstacles.size());
         for (size_t i = 0; i < msg.obstacles.size(); i++)
         {
-            const auto &msgVictims = msg.obstacles[i];
+            const auto &msg_victims = msg.obstacles[i];
 
             // Access the polygon and radius fields for each obstacle
-            const auto &polygon = msgVictims.polygon;
-            const auto &value = msgVictims.radius;
+            const auto &polygon = msg_victims.polygon;
+            const auto &value = msg_victims.radius;
 
             // Circle only contains one polygon
             const auto &point = polygon.points[0];
             auto victim = std::make_unique<Victim>();
-            victim->centerX = point.x;
-            victim->centerY = point.y;
+            victim->center_x = point.x;
+            victim->center_y = point.y;
             victim->value = value;
             victims.push_back(std::move(victim));
             victims_copy.push_back(std::move(victim));
         }
 
-        victimsAquired = true;
+        victims_aquired = true;
     }
 
     // recursive function to try to insert other victims in the path
-    std::vector<std::vector<double>> calculate_path_recursive(rrtstar::Node *vicrim_pred, rrtstar::Node *goal, std::vector<std::vector<double>> circular_obstacles, double residual_time, double value, std::vector<std::vector<double>> path, double rndMax, double rndMin)
+    std::vector<std::vector<double>> calculate_path_recursive(rrtstar::Node *vicrim_pred, rrtstar::Node *goal, std::vector<std::vector<double>> circular_obstacles, double residual_time, double value, std::vector<std::vector<double>> path, double rnd_max, double rnd_min)
     {
         std::vector<std::vector<double>> path_to_victim;
         std::vector<std::vector<double>> best_path = path;
@@ -338,8 +322,8 @@ private:
             // while victims copy is not empty and the victim is not in the copy (it means that the victim has already been inserted in the path)
             if (!victims_copy.empty())
             {
-                rrtstar::Node *victim_next = new rrtstar::Node(victim->centerX, victim->centerY, 0.785);
-                rrtstar::RRTStarDubins rrtStarDubins(vicrim_pred, victim_next, circular_obstacles, rndMin, rndMax);
+                rrtstar::Node *victim_next = new rrtstar::Node(victim->center_x, victim->center_y, 0.785);
+                rrtstar::RRTStarDubins rrtStarDubins(vicrim_pred, victim_next, circular_obstacles, rnd_min, rnd_max);
 
                 // calculate path from victim to goal
                 int counter = 0;
@@ -359,7 +343,7 @@ private:
                     continue;
                 }
                 // calculates the base path to the goal
-                std::vector<std::vector<double>> path_victim_to_goal = calculate_path_from_victims_to_goal(goal, victim_next, circular_obstacles, rndMax, rndMin);
+                std::vector<std::vector<double>> path_victim_to_goal = calculate_path_from_victims_to_goal(goal, victim_next, circular_obstacles, rnd_max, rnd_min);
 
                 auto path_duration = path_to_victim.size() * 0.1 / 0.2;
                 auto path_victim_to_goal_duration = path_victim_to_goal.size() * 0.1 / 0.2;
@@ -435,7 +419,7 @@ private:
     // base case of path calculation
     // calculate path from start to victim and from victim to goal
     // calls recursive function to try to insert other victims in the path
-    std::vector<std::vector<double>> calculate_path_base(rrtstar::Node *start, rrtstar::Node *goal, std::vector<std::vector<double>> circular_obstacles, double residual_time, double rndMax, double rndMin)
+    std::vector<std::vector<double>> calculate_path_base(rrtstar::Node *start, rrtstar::Node *goal, std::vector<std::vector<double>> circular_obstacles, double residual_time, double rnd_max, double rnd_min)
     {
         std::vector<std::vector<double>> path_to_goal;
         std::vector<std::vector<double>> actual_path;
@@ -451,9 +435,9 @@ private:
             for (const auto &victim : victims)
             {
                 // calculate path from start to victim
-                rrtstar::Node *victim_goal = new rrtstar::Node(victim->centerX, victim->centerY, 0.785);
-                rrtstar::Node *victim_exit = new rrtstar::Node(victim->centerX, victim->centerY, 0.785);
-                rrtstar::RRTStarDubins rrtStarDubins(start, victim_goal, circular_obstacles, rndMin, rndMax);
+                rrtstar::Node *victim_goal = new rrtstar::Node(victim->center_x, victim->center_y, 0.785);
+                rrtstar::Node *victim_exit = new rrtstar::Node(victim->center_x, victim->center_y, 0.785);
+                rrtstar::RRTStarDubins rrtStarDubins(start, victim_goal, circular_obstacles, rnd_min, rnd_max);
                 int count = 0;
                 do
                 {
@@ -471,7 +455,7 @@ private:
                 }
 
                 // calculates the base path to the goal
-                std::vector<std::vector<double>> path_victim_to_goal = calculate_path_from_victims_to_goal(goal, victim_exit, circular_obstacles, rndMax, rndMin);
+                std::vector<std::vector<double>> path_victim_to_goal = calculate_path_from_victims_to_goal(goal, victim_exit, circular_obstacles, rnd_max, rnd_min);
 
                 std::vector<std::unique_ptr<Victim>>::iterator it = std::find(victims_copy.begin(), victims_copy.end(), victim);
                 if (it != victims_copy.end())
@@ -492,7 +476,7 @@ private:
                     max_value = std::max(max_value, value);
 
                     // recursive call to try to insert other victims
-                    auto path_to_goal_recursive = calculate_path_recursive(victim_goal, goal, circular_obstacles, remaining_time, value, path_to_goal, rndMax, rndMin);
+                    auto path_to_goal_recursive = calculate_path_recursive(victim_goal, goal, circular_obstacles, remaining_time, value, path_to_goal, rnd_max, rnd_min);
                     // keeps track of better value
                     if (max_value == value)
                     {
@@ -519,7 +503,7 @@ private:
             if (best_path.empty())
             {
                 // if we cannot insert other victims we calculate the path from start to goal
-                std::vector<std::vector<double>> path_start_to_goal = calculate_path_from_victims_to_goal(goal, start, circular_obstacles, rndMax, rndMin);
+                std::vector<std::vector<double>> path_start_to_goal = calculate_path_from_victims_to_goal(goal, start, circular_obstacles, rnd_max, rnd_min);
                 return path_start_to_goal;
             }
             else
@@ -530,12 +514,12 @@ private:
     }
 
     // Function for path computing from victims to goal
-    std::vector<std::vector<double>> calculate_path_from_victims_to_goal(rrtstar::Node *goal, rrtstar::Node *victim_node, std::vector<std::vector<double>> circular_obstacles, double rndMax, double rndMin)
+    std::vector<std::vector<double>> calculate_path_from_victims_to_goal(rrtstar::Node *goal, rrtstar::Node *victim_node, std::vector<std::vector<double>> circular_obstacles, double rnd_max, double rnd_min)
     {
 
         std::vector<std::vector<double>> path_to_goal;
         // computes tha path from the designated victim to the goal position
-        rrtstar::RRTStarDubins rrtStarDubins(victim_node, goal, circular_obstacles, rndMin, rndMax);
+        rrtstar::RRTStarDubins rrtStarDubins(victim_node, goal, circular_obstacles, rnd_min, rnd_max);
         do
         {
             path_to_goal = rrtStarDubins.planning(false);
@@ -544,28 +528,28 @@ private:
         return path_to_goal;
     }
 
-    void generateRoadmap()
+    void generate_roadmap()
     {
-        if (obstaclesAquired && gateAquired && shelfinosAquired && mapAquired && victimsAquired)
+        if (obstacles_aquired && gate_aquired && shelfino_aquired && map_aquired && victims_aquired)
         {
             RCLCPP_INFO(this->get_logger(), "Executing RRT*");
             double max_time = 1000.0; // [s]
             // Stop the timer callback
-            plannerTimer_->cancel();
+            planner_timer->cancel();
 
             // Add obstacles to the obstacle list
             std::vector<std::vector<double>> circular_obstacles;
 
             for (const auto &obstaclePtr : obstacles)
             {
-                std::vector<double> obstacle = obstaclePtr->getObstacle();
+                std::vector<double> obstacle = obstaclePtr->get_obstacle();
                 circular_obstacles.push_back(obstacle);
             }
 
             // Discretize map borders and add them to obstacle list
             std::vector<std::vector<double>> discretize_map_borders;
 
-            for (std::vector<double> obstacle : mapBorder.discretizeBorder())
+            for (std::vector<double> obstacle : mapBorder.discretize_border())
             {
                 circular_obstacles.push_back(obstacle);
             }
@@ -583,11 +567,9 @@ private:
 
             rrtstar::Node *goal = new rrtstar::Node(position.x, position.y, gate_yaw);
 
-            auto shelfino = shelfinos[0];
-
-            auto id = shelfino.id;
-            auto shelfino_position = shelfino.position;
-            auto shelfino_orientation = shelfino.orientation;
+            auto id = shelfino0.id;
+            auto shelfino_position = shelfino0.position;
+            auto shelfino_orientation = shelfino0.orientation;
 
             // Get shelfino's yaw angle
             double t0 = 2.0 * (shelfino_orientation.w * shelfino_orientation.z + shelfino_orientation.x * shelfino_orientation.y);
@@ -599,45 +581,41 @@ private:
             auto start_time = std::chrono::high_resolution_clock::now();
 
             // Calculate first path from start position to victim for each victim
-            std::vector<std::vector<double>> path = calculate_path_base(start, goal, circular_obstacles, max_time, rndMax, rndMin);
+            std::vector<std::vector<double>> path = calculate_path_base(start, goal, circular_obstacles, max_time, rnd_max, rnd_min);
 
             RCLCPP_INFO(this->get_logger(), "Path size: %zu", path.size());
 
             auto stop_time = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
-
-            std::cout << "Path for shelfino" << id << " founded in: " << duration.count() << "milliseconds" << std::endl;
+            auto duration = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) / 1000.0;
+            RCLCPP_INFO(this->get_logger(), "Path for shelfino %i founded in: %f seconds", id, duration);
 
             // Iterate in reverse the path
             nav_msgs::msg::Path shelfino_path;
             shelfino_path.header.frame_id = "map";
-            for (auto it = path.rbegin(); it != path.rend(); ++it)
-            {
-                const auto &point = *it;
+            std::reverse(path.begin(), path.end());
 
-                geometry_msgs::msg::PoseStamped poseStamped;
+            for (const auto &point : path)
+            {
+
+                geometry_msgs::msg::PoseStamped pose_stmp;
                 // Get x,y
-                poseStamped.pose.position.x = point[0];
-                poseStamped.pose.position.y = point[1];
+                pose_stmp.pose.position.x = point[0];
+                pose_stmp.pose.position.y = point[1];
 
                 Eigen::Quaterniond quat;
                 quat = Eigen::AngleAxisd(point[2], Eigen::Vector3d::UnitZ());
                 // Get quaternion orientation from yaw
-                poseStamped.pose.orientation.x = quat.x();
-                poseStamped.pose.orientation.y = quat.y();
-                poseStamped.pose.orientation.z = quat.z();
-                poseStamped.pose.orientation.w = quat.w();
+                pose_stmp.pose.orientation.x = quat.x();
+                pose_stmp.pose.orientation.y = quat.y();
+                pose_stmp.pose.orientation.z = quat.z();
+                pose_stmp.pose.orientation.w = quat.w();
 
-                shelfino_path.poses.push_back(poseStamped);
+                shelfino_path.poses.push_back(pose_stmp);
             }
 
-            // Sent the path accordingly to the shelfino's id
-            switch (id)
-            {
-            case 0:
-                shelfino0PathPublisher_->publish(shelfino_path);
-                break;
-            }
+            // Sent the path accordingly to shelfino 0
+
+            shelfino0_path_publisher->publish(shelfino_path);
         }
     }
 };
