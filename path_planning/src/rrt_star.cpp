@@ -336,6 +336,8 @@ private:
 
             rrtstar::Node *goal = new rrtstar::Node(position.x, position.y, gate_yaw);
 
+            double total_duration = 0;
+
             for (const auto &shelfino : shelfinos)
             {
                 auto id = shelfino.id;
@@ -365,9 +367,10 @@ private:
                 } while (path.empty());
 
                 auto stop_time = std::chrono::high_resolution_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time);
 
-                std::cout << "Path for shelfino" << id << " founded in: " << duration.count() << "milliseconds" << std::endl;
+                auto duration = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count()) / 1000.0;
+                total_duration += duration;
+                RCLCPP_INFO(this->get_logger(), "Path for shelfino %i founded in: %f seconds", id, duration);
 
                 // Iterate in reverse the path
                 nav_msgs::msg::Path shelfino_path;
@@ -407,6 +410,8 @@ private:
                     break;
                 }
             }
+
+            RCLCPP_INFO(this->get_logger(), "Total roadmap planning time: %f seconds", total_duration);
         }
     }
 };
