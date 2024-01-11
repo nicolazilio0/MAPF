@@ -144,36 +144,38 @@ void GatesPublisher::rand_rectangle_gate(){
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis_x(-this->data.dx, this->data.dx);
   std::uniform_real_distribution<> dis_y(-this->data.dy, this->data.dy);
-  std::uniform_int_distribution<> dis_edge(0, 3);
-
+  std::uniform_int_distribution<> dis_edge(0, 1);
   obstacle obs {0.0, 0.0, 0., 1.0, 1.0, obstacle_type::BOX};
   double th = 0.0;
 
   do {
-    int edge = dis_edge(gen);
+    // int edge = dis_edge(gen);
+    int edge = 1;
+
     switch (edge){
       //Top horizontal edge 
       case 0:
         obs.x = dis_x(gen);
         obs.y = this->data.dy/2.0 - 0.5-0.0001;
+        th = M_PI/2;
         break;
       //Bottom horizontal edge
       case 1:
         obs.x = dis_x(gen);
         obs.y = -(this->data.dy/2.0 - 0.5-0.0001);
-        th = 3.0/2.0*M_PI;
+        th = -M_PI/2;
         break;
       //Right vertical edge
       case 2:
         obs.x = this->data.dx/2.0 - 0.5-0.0001;
         obs.y = dis_y(gen);
-        th = M_PI;
+        th = M_PI/2;
         break;
       //Left vertical edge
       case 3:
         obs.x = -(this->data.dx/2.0 - 0.5-0.0001);
         obs.y = dis_y(gen);
-        th = 2.0*M_PI;
+        th = -M_PI/2;
         break;
       default:
         RCLCPP_ERROR(this->get_logger(), "Random number generator failed, extracted %d, but should be in [0,4)", edge);
