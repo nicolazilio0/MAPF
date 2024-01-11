@@ -317,7 +317,7 @@ private:
             victim->value = value;
             victims.push_back(std::move(victim));
             double radius = 0.5;
-            this->draw_circle(radius, point, map_image, true, cv::Scalar(255, 0, 0), true, value);
+            this->draw_circle(radius, point, map_image, true, cv::Scalar(255, 0, 0), false, value);
         }
 
         RCLCPP_INFO(this->get_logger(), "Received victims");
